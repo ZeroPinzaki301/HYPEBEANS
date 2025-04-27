@@ -29,7 +29,7 @@ const OrderDetails = () => {
 
   // Socket.IO for real-time updates
   useEffect(() => {
-    const socket = io("http://localhost:5000");
+    const socket = io("https://hypebeans.onrender.com");
 
     socket.on("order-status-changed", (updatedOrder) => {
       console.log("Status update received:", updatedOrder.status); // Debug log
