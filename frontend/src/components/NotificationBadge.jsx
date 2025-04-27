@@ -8,7 +8,7 @@ const NotificationBadge = () => {
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
-    const socket = io('http://localhost:5000'); // Your backend URL
+    const socket = io('https://hypebeans.onrender.com'); // Your backend URL
 
     const fetchPendingCount = async () => {
       try {
