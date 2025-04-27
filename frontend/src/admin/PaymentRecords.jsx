@@ -68,7 +68,7 @@ const AdminPaymentProofs = () => {
                     <strong>Proof Image:</strong>
                   </p>
                   <a
-                    href={`http://localhost:5000/${proof.proofImage}`}
+                    href={`https://hypebeans.onrender.com/${proof.proofImage}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:underline"
