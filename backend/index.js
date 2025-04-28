@@ -43,18 +43,18 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Enable pre-flight for all routes
+app.options('*', cors(corsOptions));
 
-// Connect to MongoDB with enhanced error handling
+// Connect to MongoDB
 connectDB().catch(err => {
   console.error('❌ MongoDB connection error:', err);
   process.exit(1);
 });
 
-// Create HTTP server with keep-alive settings
+// Create HTTP server
 const server = http.createServer(app);
-server.keepAliveTimeout = 60000; // 60 seconds
-server.headersTimeout = 65000; // 65 seconds
+server.keepAliveTimeout = 60000;
+server.headersTimeout = 65000;
 
 // Enhanced Socket.IO configuration
 const io = new Server(server, {
@@ -68,12 +68,11 @@ const io = new Server(server, {
     maxDisconnectionDuration: 2 * 60 * 1000,
     skipMiddlewares: true,
   },
-  // Production optimizations
   serveClient: process.env.NODE_ENV !== 'production',
-  path:'/socket.io'
+  path: '/socket.io'
 });
 
-// Socket.IO enhanced connection handling
+// Socket.IO connection handling
 io.on("connection", (socket) => {
   console.log(`⚡ New connection ${socket.id}`);
 
@@ -85,7 +84,6 @@ io.on("connection", (socket) => {
     console.log(`🚫 Client disconnected (${socket.id})`, reason);
   });
 
-  // Add authentication middleware for sensitive events
   socket.use((event, next) => {
     if (['privateEvent'].includes(event[0]) && !socket.user) {
       return next(new Error('Unauthorized'));
@@ -96,7 +94,32 @@ io.on("connection", (socket) => {
 
 export { io };
 
-// API Routes with versioning
+// Security headers middleware with dynamic CSP
+app.use((req, res, next) => {
+  const isDev = process.env.NODE_ENV !== 'production';
+  
+  const cspDirectives = [
+    "default-src 'self'",
+    `connect-src 'self' ${isDev ? `ws://localhost:${process.env.PORT || 5000} ws://${process.env.HOST || '0.0.0.0'}:${process.env.PORT || 5000}` : ''}`,
+    "script-src 'self' 'unsafe-inline'", // Consider removing unsafe-inline in production
+    "style-src 'self' 'unsafe-inline'", // Consider removing unsafe-inline in production
+    "img-src 'self' data:",
+    "font-src 'self'",
+    `frame-src 'self' ${process.env.ALLOWED_FRAME_SRC || ''}`,
+    "form-action 'self'",
+    "base-uri 'self'"
+  ].join('; ');
+
+  res.setHeader('Content-Security-Policy', cspDirectives);
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  
+  next();
+});
+
+// API Routes
 app.use("/api/users", userRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/products", productRouter);
@@ -105,25 +128,7 @@ app.use("/api/cart", cartRouter);
 app.use("/api/messages", messageRouter);
 app.use("/api/payment-proof", paymentRouter);
 
-// Add this after all app.use() routes
-app._router.stack.forEach(layer => {
-  if (layer.route) {
-    const path = layer.route.path;
-    if (typeof path !== 'string') {
-      console.error('🚨 Non-string route path:', { 
-        path, 
-        methods: Object.keys(layer.route.methods) 
-      });
-      throw new Error('Invalid route path type');
-    }
-    if (path.includes(':/') || path.endsWith(':')) {
-      console.error('🚨 Malformed route parameter:', path);
-      throw new Error('Route contains invalid parameter syntax');
-    }
-  }
-});
-
-// Enhanced request logging
+// Request logging
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.ip} ${req.method} ${req.url}`);
   next();
@@ -145,14 +150,6 @@ if (process.env.NODE_ENV === "production") {
   const staticPath = path.join(__dirname, "..", "frontend", "dist");
   console.log("🖥️ Serving production frontend from", staticPath);
 
-  // Security headers for production
-  app.use((req, res, next) => {
-    res.setHeader('Content-Security-Policy', "default-src 'self'");
-    res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('X-XSS-Protection', '1; mode=block');
-    next();
-  });
-
   app.use(express.static(staticPath, {
     maxAge: '1y',
     immutable: true,
@@ -169,7 +166,7 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-// Enhanced health check
+// Health check endpoint
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
@@ -181,14 +178,14 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Low stock notification with error handling
+// Low stock notification
 const lowStockInterval = setInterval(() => {
   notifyAdminOfLowStock().catch(err => {
     console.error('Low stock notification error:', err);
   });
 }, 3600000);
 
-// Centralized error handling
+// Error handling
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;
   console.error(`[${new Date().toISOString()}] Error: ${err.message}`);
@@ -202,7 +199,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler with JSON response
+// 404 handler
 app.use((req, res) => {
   res.status(404).json({ 
     error: 'Not Found',
@@ -210,7 +207,7 @@ app.use((req, res) => {
   });
 });
 
-// Server startup with cluster support
+// Server startup
 const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST || "0.0.0.0";
 
@@ -228,7 +225,6 @@ if (process.env.NODE_ENV === 'production' && process.env.USE_CLUSTER === 'true')
     if (cluster.default.isPrimary) {
       console.log(`Primary ${process.pid} is running`);
       
-      // Fork workers
       for (let i = 0; i < os.cpus().length; i++) {
         cluster.default.fork();
       }
@@ -245,7 +241,7 @@ if (process.env.NODE_ENV === 'production' && process.env.USE_CLUSTER === 'true')
   startServer();
 }
 
-// Graceful shutdown with cleanup
+// Graceful shutdown
 const shutdown = async () => {
   console.log('🛑 Shutting down gracefully...');
   
@@ -256,7 +252,6 @@ const shutdown = async () => {
     process.exit(0);
   });
 
-  // Force shutdown if server doesn't close in time
   setTimeout(() => {
     console.error('⚠️ Forcing shutdown');
     process.exit(1);
