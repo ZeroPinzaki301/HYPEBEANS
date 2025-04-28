@@ -14,112 +14,86 @@ import paymentRouter from "./routes/payment.route.js";
 import { notifyAdminOfLowStock } from "./utils/lowStockNotifier.js";
 import path from "path";
 import { fileURLToPath } from "url";
-import os from "os";
 
-// Enhanced ES Modules fix for __dirname
+// Configurations
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Load environment variables
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-// Initialize Express app
 const app = express();
-
-// Enhanced security middleware
 app.disable('x-powered-by');
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Dynamic CORS configuration
-const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.FRONTEND_PROD_URL, process.env.FRONTEND_DEV_URL]
-    : process.env.FRONTEND_DEV_URL || "http://localhost:5173",
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  credentials: true,
-  optionsSuccessStatus: 200
-};
+// Enhanced CORS Configuration
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://hypebeans.onrender.com"
+];
 
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
-
-// Connect to MongoDB
-connectDB().catch(err => {
-  console.error('❌ MongoDB connection error:', err);
-  process.exit(1);
-});
-
-// Create HTTP server
-const server = http.createServer(app);
-server.keepAliveTimeout = 60000;
-server.headersTimeout = 65000;
-
-// Enhanced Socket.IO configuration
-const io = new Server(server, {
-  cors: corsOptions,
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  maxHttpBufferSize: 1e8,
-  transports: ["websocket", "polling"],
-  allowEIO3: true,
-  connectionStateRecovery: {
-    maxDisconnectionDuration: 2 * 60 * 1000,
-    skipMiddlewares: true,
-  },
-  serveClient: process.env.NODE_ENV !== 'production',
-  path: '/socket.io'
-});
-
-// Socket.IO connection handling
-io.on("connection", (socket) => {
-  console.log(`⚡ New connection ${socket.id}`);
-
-  socket.on("error", (err) => {
-    console.error(`Socket error (${socket.id})`, err);
-  });
-
-  socket.on("disconnect", (reason) => {
-    console.log(`🚫 Client disconnected (${socket.id})`, reason);
-  });
-
-  socket.use((event, next) => {
-    if (['privateEvent'].includes(event[0]) && !socket.user) {
-      return next(new Error('Unauthorized'));
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
     }
-    next();
-  });
-});
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
 
-export { io };
-
-// Security headers middleware with dynamic CSP
+// Security Headers Middleware
 app.use((req, res, next) => {
-  const isDev = process.env.NODE_ENV !== 'production';
-  
-  const cspDirectives = [
-    "default-src 'self'",
-    `connect-src 'self' ${isDev ? `ws://localhost:${process.env.PORT || 5000} ws://${process.env.HOST || '0.0.0.0'}:${process.env.PORT || 5000}` : ''}`,
-    "script-src 'self' 'unsafe-inline'", // Consider removing unsafe-inline in production
-    "style-src 'self' 'unsafe-inline'", // Consider removing unsafe-inline in production
-    "img-src 'self' data:",
-    "font-src 'self'",
-    `frame-src 'self' ${process.env.ALLOWED_FRAME_SRC || ''}`,
-    "form-action 'self'",
-    "base-uri 'self'"
-  ].join('; ');
+  const csp = `
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' https://maps.googleapis.com;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    img-src 'self' data: https://*.googleapis.com https://*.gstatic.com;
+    font-src 'self' https://fonts.gstatic.com;
+    frame-src 'self' https://www.google.com https://maps.google.com;
+    connect-src 'self' ws://localhost:5000 wss://hypebeans.onrender.com;
+  `.replace(/\s+/g, ' ').trim();
 
-  res.setHeader('Content-Security-Policy', cspDirectives);
+  res.setHeader('Content-Security-Policy', csp);
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  
   next();
 });
 
-// API Routes
+// Body Parsers
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Database Connection
+connectDB().catch(err => {
+  console.error('MongoDB connection error:', err);
+  process.exit(1);
+});
+
+// Socket.IO Setup
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true
+  },
+  path: "/socket.io"
+});
+
+io.on("connection", (socket) => {
+  console.log(`New connection: ${socket.id}`);
+  
+  socket.on("order-status-changed", (data) => {
+    io.emit("order-update", data);
+  });
+
+  socket.on("disconnect", () => {
+    console.log(`Disconnected: ${socket.id}`);
+  });
+});
+
+// Routes
 app.use("/api/users", userRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/products", productRouter);
@@ -128,142 +102,26 @@ app.use("/api/cart", cartRouter);
 app.use("/api/messages", messageRouter);
 app.use("/api/payment-proof", paymentRouter);
 
-// Request logging
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.ip} ${req.method} ${req.url}`);
-  next();
-});
+// Static Files
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Static files with security headers
-app.use("/uploads", express.static(path.join(__dirname, "uploads"), {
-  maxAge: "1d",
-  setHeaders: (res, filePath) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    if (filePath.endsWith('.html')) {
-      res.setHeader('Cache-Control', 'no-cache');
-    }
-  }
-}));
-
-// Production configuration for frontend
+// Production Frontend Serving
 if (process.env.NODE_ENV === "production") {
-  const staticPath = path.join(__dirname, "..", "frontend", "dist");
-  console.log("🖥️ Serving production frontend from", staticPath);
-
-  app.use(express.static(staticPath, {
-    maxAge: '1y',
-    immutable: true,
-    setHeaders: (res, path) => {
-      if (path.endsWith('.html')) {
-        res.setHeader('Cache-Control', 'no-cache');
-      }
-    }
-  }));
-
-  // Handle SPA routing
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(staticPath, 'index.html'));
+  const staticPath = path.join(__dirname, "../frontend/dist");
+  app.use(express.static(staticPath));
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(staticPath, "index.html"));
   });
 }
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.status(200).json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    memoryUsage: process.memoryUsage(),
-    env: process.env.NODE_ENV || 'development'
-  });
-});
-
-// Low stock notification
-const lowStockInterval = setInterval(() => {
-  notifyAdminOfLowStock().catch(err => {
-    console.error('Low stock notification error:', err);
-  });
-}, 3600000);
-
-// Error handling
+// Error Handling
 app.use((err, req, res, next) => {
-  const statusCode = err.statusCode || 500;
-  console.error(`[${new Date().toISOString()}] Error: ${err.message}`);
   console.error(err.stack);
-
-  res.status(statusCode).json({
-    error: {
-      message: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error',
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-    }
-  });
+  res.status(500).json({ error: 'Internal Server Error' });
 });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ 
-    error: 'Not Found',
-    message: `The requested resource ${req.url} was not found` 
-  });
-});
-
-// Server startup
+// Server Start
 const PORT = process.env.PORT || 5000;
-const HOST = process.env.HOST || "0.0.0.0";
-
-const startServer = () => {
-  server.listen(PORT, HOST, () => {
-    console.log(`🚀 Server running on http://${HOST}:${PORT}`);
-    console.log(`🔌 Socket.IO running on ws://${HOST}:${PORT}`);
-    console.log(`🌿 Environment: ${process.env.NODE_ENV || 'development'}`);
-  });
-};
-
-// Cluster mode for production
-if (process.env.NODE_ENV === 'production' && process.env.USE_CLUSTER === 'true') {
-  import('cluster').then(cluster => {
-    if (cluster.default.isPrimary) {
-      console.log(`Primary ${process.pid} is running`);
-      
-      for (let i = 0; i < os.cpus().length; i++) {
-        cluster.default.fork();
-      }
-      
-      cluster.default.on('exit', (worker, code, signal) => {
-        console.log(`Worker ${worker.process.pid} died`);
-        cluster.default.fork();
-      });
-    } else {
-      startServer();
-    }
-  });
-} else {
-  startServer();
-}
-
-// Graceful shutdown
-const shutdown = async () => {
-  console.log('🛑 Shutting down gracefully...');
-  
-  clearInterval(lowStockInterval);
-  
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
-
-  setTimeout(() => {
-    console.error('⚠️ Forcing shutdown');
-    process.exit(1);
-  }, 10000);
-};
-
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
-  shutdown();
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
