@@ -8,29 +8,20 @@ const router = express.Router();
 // Create Product Route
 router.post("/create", productUpload.single("image"), async (req, res) => {
   try {
-    const body = req.body;
-
-    const { name, price, description, productType, beverageType } = body;
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const { name, price, description, productType, beverageType, ingredients } = body;
     const image = req.file ? `uploads/${req.file.filename}` : null;
 
     if (!name || !price || !description || !productType) {
       return res.status(400).json({ message: "Missing required fields." });
     }
 
-    // Parse ingredients from string or object
-    let parsedIngredients = [];
-    if (body.ingredients) {
-      const rawIngredients = typeof body.ingredients === "string"
-        ? JSON.parse(body.ingredients)
-        : body.ingredients;
-
-      if (Array.isArray(rawIngredients)) {
-        parsedIngredients = rawIngredients.map(ing => ({
-          ingredient: ing.ingredient,
+    let parsedIngredients = Array.isArray(ingredients)
+      ? ingredients.map((ing) => ({
+          ingredient: ing.ingredient, // Storing ObjectId directly
           quantityRequired: Number(ing.quantityRequired),
-        }));
-      }
-    }
+        }))
+      : [];
 
     const newProduct = new Product({
       name,
@@ -53,6 +44,7 @@ router.post("/create", productUpload.single("image"), async (req, res) => {
     res.status(500).json({ message: "Server Error", error: error.message });
   }
 });
+
 
 // Update/Edit Product Route
 router.put("/update/:id", productUpload.single("image"), async (req, res) => {
@@ -146,30 +138,6 @@ router.get("/:id", async (req, res) => {
     res.status(200).json(product);
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
-  }
-});
-
-// Add ingredient to the product
-router.post("/add-ingredient", async (req, res) => {
-  const { productId, ingredientId, quantityRequired } = req.body;
-
-  try {
-    let product = await Product.findById(productId);
-    if (!product) return res.status(404).json({ message: "Product not found" });
-
-    const existingIngredient = product.ingredients.find((ing) => ing.ingredient.toString() === ingredientId);
-
-    if (existingIngredient) {
-      existingIngredient.quantityRequired += quantityRequired; // Update quantity like cart logic
-    } else {
-      product.ingredients.push({ ingredient: ingredientId, quantityRequired });
-    }
-
-    await product.save();
-    res.status(200).json({ message: "Ingredient added to product", product });
-  } catch (error) {
-    console.error("Error adding ingredient:", error.message);
-    res.status(500).json({ message: "Server Error", error: error.message });
   }
 });
 
