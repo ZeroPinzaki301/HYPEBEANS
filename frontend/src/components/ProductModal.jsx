@@ -98,12 +98,6 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
     setError(null);
   };
 
-    // Clear selection
-    setSelectedIngredient("");
-    setIngredientQuantity("");
-    setError(null);
-  };
-
   const removeIngredient = (index) => {
     setProduct(prev => ({
       ...prev,
@@ -339,5 +333,6 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
       </div>
     </div>
   );
+};
 
 export default ProductModal;
