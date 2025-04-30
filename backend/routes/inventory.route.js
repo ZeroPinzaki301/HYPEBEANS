@@ -4,7 +4,7 @@ import Ingredient from "../models/Ingredient.model.js";
 const router = express.Router();
 
 // 🥬 Get All Ingredients
-router.get("/ingredients", async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const ingredients = await Ingredient.find();
     res.json(ingredients);
@@ -14,7 +14,7 @@ router.get("/ingredients", async (req, res) => {
 });
 
 // 🥬 Get Ingredient by ID
-router.get("/ingredients/:id", async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     const ingredient = await Ingredient.findById(req.params.id);
     if (!ingredient) return res.status(404).json({ error: "Ingredient not found" });
@@ -25,7 +25,7 @@ router.get("/ingredients/:id", async (req, res) => {
 });
 
 // 🥬 Check if Ingredient Exists
-router.post("/ingredients/check", async (req, res) => {
+router.post("/check", async (req, res) => {
   const { name } = req.body;
   try {
     const ingredient = await Ingredient.findOne({ name });
@@ -39,7 +39,7 @@ router.post("/ingredients/check", async (req, res) => {
 });
 
 // 🥬 Create New Ingredient
-router.post("/ingredients/create", async (req, res) => {
+router.post("/create", async (req, res) => {
   const { name, quantity, unit } = req.body;
   try {
     const existingIngredient = await Ingredient.findOne({ name });
@@ -56,7 +56,7 @@ router.post("/ingredients/create", async (req, res) => {
 });
 
 // 🥬 Update Ingredient
-router.put("/ingredients/:id", async (req, res) => {
+router.put("/:id", async (req, res) => {
   try {
     const updatedIngredient = await Ingredient.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!updatedIngredient) return res.status(404).json({ error: "Ingredient not found" });
@@ -67,7 +67,7 @@ router.put("/ingredients/:id", async (req, res) => {
 });
 
 // 🥬 Delete Ingredient
-router.delete("/ingredients/:id", async (req, res) => {
+router.delete("/:id", async (req, res) => {
   try {
     const deletedIngredient = await Ingredient.findByIdAndDelete(req.params.id);
     if (!deletedIngredient) return res.status(404).json({ error: "Ingredient not found" });
