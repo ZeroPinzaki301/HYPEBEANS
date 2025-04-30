@@ -16,14 +16,17 @@ router.post("/create", productUpload.single("image"), async (req, res) => {
     if (productType === "beverages" && !beverageType) {
         return res.status(400).json({ message: "Beverage type is required for beverages." });
     }
-    if (!ingredients || !Array.isArray(ingredients)) {
+    if (!ingredients || !Array.isArray(JSON.parse(ingredients))) {
         return res.status(400).json({ message: "Ingredients must be provided as an array." });
     }
 
     try {
+        // Parse ingredients from string if sent via multipart/form-data
+        const parsedIngredients = JSON.parse(ingredients);
+
         // Process ingredients: Check existence or create new ones
         const ingredientRecords = await Promise.all(
-            ingredients.map(async (ingredient) => {
+            parsedIngredients.map(async (ingredient) => {
                 let existingIngredient = await Ingredient.findOne({ name: ingredient.name });
 
                 if (!existingIngredient) {
@@ -49,7 +52,13 @@ router.post("/create", productUpload.single("image"), async (req, res) => {
 
         // Create product and link recipe
         const newProduct = new Product({
-            name, price, description, productType, beverageType, image, recipe: newRecipe._id
+            name,
+            price,
+            description,
+            productType,
+            beverageType: productType === "beverages" ? beverageType : undefined,
+            image,
+            recipe: newRecipe._id
         });
 
         await newProduct.save();
@@ -62,6 +71,7 @@ router.post("/create", productUpload.single("image"), async (req, res) => {
         res.status(500).json({ message: "Server Error", error: error.message });
     }
 });
+
 
 // Update/Edit Product Route
 router.put("/update/:id", productUpload.single("image"), async (req, res) => {
