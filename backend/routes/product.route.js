@@ -8,20 +8,42 @@ const router = express.Router();
 // Create Product Route
 router.post("/create", productUpload.single("image"), async (req, res) => {
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const { name, price, description, productType, beverageType, ingredients } = body;
+    // Parse body from FormData
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+
+    const {
+      name,
+      price,
+      description,
+      productType,
+      beverageType,
+      ingredients
+    } = body;
+
     const image = req.file ? `uploads/${req.file.filename}` : null;
 
     if (!name || !price || !description || !productType) {
       return res.status(400).json({ message: "Missing required fields." });
     }
 
-    let parsedIngredients = Array.isArray(ingredients)
-      ? ingredients.map((ing) => ({
-          ingredient: ing.ingredient, // Storing ObjectId directly
-          quantityRequired: Number(ing.quantityRequired),
-        }))
-      : [];
+    if (productType === "beverages" && !beverageType) {
+      return res.status(400).json({ message: "Beverage type is required for beverages." });
+    }
+
+    // Parse and format ingredients
+    let parsedIngredients = [];
+    if (ingredients) {
+      const rawIngredients = typeof ingredients === 'string'
+        ? JSON.parse(ingredients)
+        : ingredients;
+
+      if (Array.isArray(rawIngredients)) {
+        parsedIngredients = await Promise.all(rawIngredients.map(async (ing) => ({
+          ingredient: ing.ingredient || ing, // either _id or object with .ingredient
+          quantityRequired: Number(ing.quantityRequired)
+        })));
+      }
+    }
 
     const newProduct = new Product({
       name,
@@ -30,17 +52,16 @@ router.post("/create", productUpload.single("image"), async (req, res) => {
       productType,
       beverageType,
       image,
-      ingredients: parsedIngredients,
+      ingredients: parsedIngredients
     });
 
     await newProduct.save();
-
-    // Return populated ingredients for frontend display
-    const populatedProduct = await Product.findById(newProduct._id).populate("ingredients.ingredient");
-
-    res.status(201).json({ message: "Product created successfully", product: populatedProduct });
+    res.status(201).json({ message: "Product created successfully", product: newProduct });
   } catch (error) {
     console.error("Error creating product:", error);
+    if (error.name === "ValidationError") {
+      return res.status(400).json({ message: error.message });
+    }
     res.status(500).json({ message: "Server Error", error: error.message });
   }
 });
@@ -55,8 +76,7 @@ router.put("/update/:id", productUpload.single("image"), async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // Parse body from FormData if needed
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const body = req.body;
 
     product.name = body.name || product.name;
     product.price = body.price || product.price;
@@ -70,28 +90,20 @@ router.put("/update/:id", productUpload.single("image"), async (req, res) => {
 
     // Update ingredients if provided
     if (body.ingredients) {
-      // Handle string or object format
       const rawIngredients = typeof body.ingredients === 'string'
         ? JSON.parse(body.ingredients)
         : body.ingredients;
 
       if (Array.isArray(rawIngredients)) {
-        product.ingredients = rawIngredients.map(ing => ({
-          ingredient: ing.ingredient, // This should be the ObjectId
+        product.ingredients = await Promise.all(rawIngredients.map(async (ing) => ({
+          ingredient: ing.ingredient || ing,
           quantityRequired: Number(ing.quantityRequired)
-        }));
+        })));
       }
     }
 
     const updatedProduct = await product.save();
-    
-    // Return populated product
-    const populatedProduct = await Product.findById(updatedProduct._id).populate("ingredients.ingredient");
-    
-    res.status(200).json({ 
-      message: "Product updated successfully", 
-      product: populatedProduct 
-    });
+    res.status(200).json({ message: "Product updated successfully", product: updatedProduct });
   } catch (error) {
     console.error("Error updating product:", error);
     res.status(500).json({ message: "Server Error", error: error.message });
@@ -118,7 +130,7 @@ router.delete("/delete/:id", async (req, res) => {
 // Get All Products Route
 router.get("/", async (req, res) => {
   try {
-    const products = await Product.find().populate("ingredients.ingredient");
+    const products = await Product.find().populate("ingredients.ingredient"); // optional
     res.status(200).json(products);
   } catch (error) {
     res.status(500).json({ message: "Server Error", error: error.message });
