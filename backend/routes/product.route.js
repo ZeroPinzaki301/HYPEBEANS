@@ -1,6 +1,6 @@
 import express from 'express';
 import Product from '../models/Product.model.js';
-import { Recipe, Ingredient } from '../models/inventory.model.js'; // Now using centralized inventory models
+import { Recipe, Ingredient } from '../models/Inventory.model.js'; // Now using centralized inventory models
 import { productUpload } from '../utils/multer.js';
 
 const router = express.Router();
