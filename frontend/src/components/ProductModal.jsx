@@ -9,6 +9,10 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
     beverageType: "",
     imageFile: null,
     ingredients: [],
+    variants: {
+      hot: { price: "", stock: "0" },
+      iced: { price: "", stock: "0" },
+    }
   });
 
   const [previewImage, setPreviewImage] = useState(null);
@@ -27,7 +31,17 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
           name: ing.name || "",
           quantity: ing.quantity?.toString() || "1",
           unit: ing.unit || "pcs"
-        })) || []
+        })) || [],
+        variants: {
+          hot: { 
+            price: editingProduct.variants?.hot?.price?.toString() || "", 
+            stock: editingProduct.variants?.hot?.stock?.toString() || "0" 
+          },
+          iced: { 
+            price: editingProduct.variants?.iced?.price?.toString() || "", 
+            stock: editingProduct.variants?.iced?.stock?.toString() || "0" 
+          }
+        }
       });
 
       // Set image preview if exists
@@ -44,6 +58,19 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
       [name]: value,
       // Clear beverageType if switching to delights
       ...(name === "productType" && value === "delights" ? { beverageType: "" } : {}),
+    }));
+  };
+
+  const handleVariantChange = (type, field, value) => {
+    setProduct(prev => ({
+      ...prev,
+      variants: {
+        ...prev.variants,
+        [type]: {
+          ...prev.variants[type],
+          [field]: value
+        }
+      }
     }));
   };
 
@@ -106,26 +133,53 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
     }
 
     // Validate all ingredients have names and valid quantities
+    if (product.ingredients.length === 0) {
+      alert("Please add at least one ingredient.");
+      return;
+    }
+    
     if (product.ingredients.some(ing => !ing.name || isNaN(parseFloat(ing.quantity)) || parseFloat(ing.quantity) <= 0)) {
       alert("Please provide valid names and quantities for all ingredients.");
       return;
     }
 
     // Prepare data for submission
-    const submissionData = {
-      name: product.name,
-      price: parseFloat(product.price),
-      description: product.description,
-      productType: product.productType,
-      beverageType: product.productType === "beverages" ? product.beverageType : undefined,
-      ingredients: product.ingredients.map(ing => ({
+    const formData = new FormData();
+    formData.append("name", product.name);
+    formData.append("price", parseFloat(product.price));
+    formData.append("description", product.description);
+    formData.append("productType", product.productType);
+    
+    if (product.productType === "beverages" && product.beverageType) {
+      formData.append("beverageType", product.beverageType);
+    }
+    
+    // Handle variants for both types
+    if (product.variants.hot.price) {
+      formData.append("variants[hot][price]", parseFloat(product.variants.hot.price));
+      formData.append("variants[hot][stock]", parseInt(product.variants.hot.stock || "0", 10));
+    }
+    
+    if (product.variants.iced.price) {
+      formData.append("variants[iced][price]", parseFloat(product.variants.iced.price));
+      formData.append("variants[iced][stock]", parseInt(product.variants.iced.stock || "0", 10));
+    }
+    
+    // IMPORTANT: Convert ingredients array to JSON string and append as a single field
+    formData.append("ingredients", JSON.stringify(
+      product.ingredients.map(ing => ({
         name: ing.name.trim(),
         quantity: parseFloat(ing.quantity),
         unit: ing.unit || "pcs"
       }))
-    };
+    ));
+    
+    // Append image if exists
+    if (product.imageFile) {
+      formData.append("image", product.imageFile);
+    }
 
-    saveProduct(submissionData, product.imageFile);
+    saveProduct(formData);
   };
 
   return (
@@ -213,6 +267,66 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
               </select>
             </div>
           )}
+          
+          {/* Variants Section */}
+          <div className="mb-4">
+            <label className="block text-gray-700 mb-2">Variants (Optional)</label>
+            <div className="grid grid-cols-2 gap-4">
+              {/* Hot Variant */}
+              <div className="border rounded-lg p-3">
+                <h3 className="font-medium mb-2">Hot</h3>
+                <div className="mb-2">
+                  <label className="block text-sm text-gray-600">Price</label>
+                  <input
+                    type="number"
+                    value={product.variants.hot.price}
+                    onChange={(e) => handleVariantChange('hot', 'price', e.target.value)}
+                    min="0"
+                    step="0.01"
+                    className="w-full p-2 border rounded-lg"
+                    placeholder="Same as base price if empty"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600">Stock</label>
+                  <input
+                    type="number"
+                    value={product.variants.hot.stock}
+                    onChange={(e) => handleVariantChange('hot', 'stock', e.target.value)}
+                    min="0"
+                    className="w-full p-2 border rounded-lg"
+                  />
+                </div>
+              </div>
+              
+              {/* Iced Variant */}
+              <div className="border rounded-lg p-3">
+                <h3 className="font-medium mb-2">Iced</h3>
+                <div className="mb-2">
+                  <label className="block text-sm text-gray-600">Price</label>
+                  <input
+                    type="number"
+                    value={product.variants.iced.price}
+                    onChange={(e) => handleVariantChange('iced', 'price', e.target.value)}
+                    min="0"
+                    step="0.01"
+                    className="w-full p-2 border rounded-lg"
+                    placeholder="Same as base price if empty"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600">Stock</label>
+                  <input
+                    type="number"
+                    value={product.variants.iced.stock}
+                    onChange={(e) => handleVariantChange('iced', 'stock', e.target.value)}
+                    min="0"
+                    className="w-full p-2 border rounded-lg"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Image Upload */}
           <div className="mb-4">
@@ -237,7 +351,12 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
 
           {/* Ingredients Section */}
           <div className="mb-4">
-            <label className="block text-gray-700 mb-2">Recipe Ingredients</label>
+            <label className="block text-gray-700 mb-2">Recipe Ingredients *</label>
+            {product.ingredients.length === 0 && (
+              <div className="mb-2 text-red-500 text-sm">
+                At least one ingredient is required
+              </div>
+            )}
             {product.ingredients.map((ingredient, index) => (
               <div key={index} className="flex items-center mb-2 gap-2">
                 <input
