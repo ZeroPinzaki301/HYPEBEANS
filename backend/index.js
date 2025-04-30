@@ -11,6 +11,7 @@ import orderRouter from "./routes/order.route.js";
 import cartRouter from "./routes/cart.route.js";
 import messageRouter from "./routes/message.route.js";
 import paymentRouter from "./routes/payment.route.js";
+import inventoryRouter from "./routes/inventory.route.js;
 import { notifyAdminOfLowStock } from "./utils/lowStockNotifier.js";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -104,6 +105,7 @@ app.use("/api/orders", orderRouter);
 app.use("/api/cart", cartRouter);
 app.use("/api/messages", messageRouter);
 app.use("/api/payment-proof", paymentRouter);
+app.use("/api/inventory", inventoryRouter);
 
 // Add this after all app.use() routes
 app._router.stack.forEach(layer => {
