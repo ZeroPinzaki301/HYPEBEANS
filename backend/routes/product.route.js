@@ -8,20 +8,29 @@ const router = express.Router();
 // Create Product Route
 router.post("/create", productUpload.single("image"), async (req, res) => {
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const { name, price, description, productType, beverageType, ingredients } = body;
+    const body = req.body;
+
+    const { name, price, description, productType, beverageType } = body;
     const image = req.file ? `uploads/${req.file.filename}` : null;
 
     if (!name || !price || !description || !productType) {
       return res.status(400).json({ message: "Missing required fields." });
     }
 
-    let parsedIngredients = Array.isArray(ingredients)
-      ? ingredients.map((ing) => ({
-          ingredient: ing.ingredient, // Storing ObjectId directly
+    // Parse ingredients from string or object
+    let parsedIngredients = [];
+    if (body.ingredients) {
+      const rawIngredients = typeof body.ingredients === "string"
+        ? JSON.parse(body.ingredients)
+        : body.ingredients;
+
+      if (Array.isArray(rawIngredients)) {
+        parsedIngredients = rawIngredients.map(ing => ({
+          ingredient: ing.ingredient,
           quantityRequired: Number(ing.quantityRequired),
-        }))
-      : [];
+        }));
+      }
+    }
 
     const newProduct = new Product({
       name,
@@ -44,7 +53,6 @@ router.post("/create", productUpload.single("image"), async (req, res) => {
     res.status(500).json({ message: "Server Error", error: error.message });
   }
 });
-
 
 // Update/Edit Product Route
 router.put("/update/:id", productUpload.single("image"), async (req, res) => {
