@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import axios from from "../utils/axiosInstance";
 
 const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
   const [product, setProduct] = useState({
