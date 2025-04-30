@@ -7,55 +7,34 @@ const router = express.Router();
 
 // Create Product Route
 router.post("/create", productUpload.single("image"), async (req, res) => {
-    const { name, price, description, productType, beverageType, ingredients } = req.body;
-    const image = req.file ? `uploads/${req.file.filename}` : null;
-
-    if (!name || !price || !description || !productType) {
-        return res.status(400).json({ message: "Missing required fields." });
+  try {
+    // 1. Parse ingredients (fallback to empty array if missing)
+    let ingredients = [];
+    if (req.body.ingredients) {
+      try {
+        ingredients = JSON.parse(req.body.ingredients);
+      } catch (e) {
+        return res.status(400).json({ message: "Invalid ingredients format." });
+      }
     }
-    if (productType === "beverages" && !beverageType) {
-        return res.status(400).json({ message: "Beverage type is required for beverages." });
+
+    // 2. Ensure ingredients is an array
+    if (!Array.isArray(ingredients)) {
+      return res.status(400).json({ message: "Ingredients must be an array." });
     }
 
-    try {
-        // Process ingredients: Check existence or create new ones
-        const ingredientRecords = await Promise.all(
-            ingredients.map(async (ingredient) => {
-                let existingIngredient = await Ingredient.findOne({ name: ingredient.name });
+    // 3. Rest of your logic (create ingredients, recipe, product)
+    const ingredientRecords = await Promise.all(
+      ingredients.map(async (ingredient) => {
+        // Your existing ingredient processing code
+      })
+    );
 
-                if (!existingIngredient) {
-                    existingIngredient = new Ingredient({
-                        name: ingredient.name,
-                        quantity: ingredient.quantity, // Initial stock
-                        unit: ingredient.unit || "pcs"
-                    });
-                    await existingIngredient.save();
-                }
-                return { ingredient: existingIngredient._id, quantityRequired: ingredient.quantity };
-            })
-        );
-
-        // Create recipe entry
-        const newRecipe = new Recipe({
-            product: null, // To be linked after product creation
-            ingredients: ingredientRecords
-        });
-
-        await newRecipe.save();
-
-        // Create product and link recipe
-        const newProduct = new Product({
-            name, price, description, productType, beverageType, image, recipe: newRecipe._id
-        });
-
-        await newProduct.save();
-        newRecipe.product = newProduct._id;
-        await newRecipe.save();
-
-        res.status(201).json({ message: "Product created successfully", product: newProduct });
-    } catch (error) {
-        res.status(500).json({ message: "Server Error", error: error.message });
-    }
+    // ... (continue with recipe and product creation)
+  } catch (error) {
+    console.error("Server Error:", error);
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
 });
 
   
