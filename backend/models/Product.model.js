@@ -27,10 +27,11 @@ const productSchema = new mongoose.Schema(
               "cold brew specials",
             ],
         },
-        recipe: { 
-            type: mongoose.Schema.Types.ObjectId, 
-            ref: "Recipe"
-        }        
+        ingredients: [{ 
+            name: { type: String, required: true }, 
+            quantity: { type: Number, required: true }, 
+            unit: { type: String, enum: ["g", "ml", "pcs"], required: true } 
+        }]       
     },
     { timestamps: true }
 );
