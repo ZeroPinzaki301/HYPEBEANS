@@ -33,15 +33,16 @@ router.post("/create", productUpload.single("image"), async (req, res) => {
     // Parse and format ingredients
     let parsedIngredients = [];
     if (ingredients) {
+      // Handle string or object format from frontend
       const rawIngredients = typeof ingredients === 'string'
         ? JSON.parse(ingredients)
         : ingredients;
 
       if (Array.isArray(rawIngredients)) {
-        parsedIngredients = await Promise.all(rawIngredients.map(async (ing) => ({
-          ingredient: ing.ingredient || ing, // either _id or object with .ingredient
+        parsedIngredients = rawIngredients.map(ing => ({
+          ingredient: ing.ingredient, // This should be the ObjectId
           quantityRequired: Number(ing.quantityRequired)
-        })));
+        }));
       }
     }
 
@@ -56,7 +57,11 @@ router.post("/create", productUpload.single("image"), async (req, res) => {
     });
 
     await newProduct.save();
-    res.status(201).json({ message: "Product created successfully", product: newProduct });
+    
+    // Return populated ingredients for the frontend
+    const populatedProduct = await Product.findById(newProduct._id).populate("ingredients.ingredient");
+    
+    res.status(201).json({ message: "Product created successfully", product: populatedProduct });
   } catch (error) {
     console.error("Error creating product:", error);
     if (error.name === "ValidationError") {
@@ -76,7 +81,8 @@ router.put("/update/:id", productUpload.single("image"), async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    const body = req.body;
+    // Parse body from FormData if needed
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
 
     product.name = body.name || product.name;
     product.price = body.price || product.price;
@@ -90,20 +96,28 @@ router.put("/update/:id", productUpload.single("image"), async (req, res) => {
 
     // Update ingredients if provided
     if (body.ingredients) {
+      // Handle string or object format
       const rawIngredients = typeof body.ingredients === 'string'
         ? JSON.parse(body.ingredients)
         : body.ingredients;
 
       if (Array.isArray(rawIngredients)) {
-        product.ingredients = await Promise.all(rawIngredients.map(async (ing) => ({
-          ingredient: ing.ingredient || ing,
+        product.ingredients = rawIngredients.map(ing => ({
+          ingredient: ing.ingredient, // This should be the ObjectId
           quantityRequired: Number(ing.quantityRequired)
-        })));
+        }));
       }
     }
 
     const updatedProduct = await product.save();
-    res.status(200).json({ message: "Product updated successfully", product: updatedProduct });
+    
+    // Return populated product
+    const populatedProduct = await Product.findById(updatedProduct._id).populate("ingredients.ingredient");
+    
+    res.status(200).json({ 
+      message: "Product updated successfully", 
+      product: populatedProduct 
+    });
   } catch (error) {
     console.error("Error updating product:", error);
     res.status(500).json({ message: "Server Error", error: error.message });
@@ -130,7 +144,7 @@ router.delete("/delete/:id", async (req, res) => {
 // Get All Products Route
 router.get("/", async (req, res) => {
   try {
-    const products = await Product.find().populate("ingredients.ingredient"); // optional
+    const products = await Product.find().populate("ingredients.ingredient");
     res.status(200).json(products);
   } catch (error) {
     res.status(500).json({ message: "Server Error", error: error.message });
