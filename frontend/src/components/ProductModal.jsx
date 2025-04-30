@@ -1,137 +1,104 @@
 import React, { useState, useEffect } from "react";
 import axiosInstance from "../utils/axiosInstance";
+import ProductModal from "../components/ProductModal";
 
-const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
-  const [product, setProduct] = useState({
-    name: "",
-    price: "",
-    description: "",
-    productType: "beverages",
-    beverageType: "",
-    imageFile: null,
-    ingredients: [], // New field for recipe ingredients
-  });
+const Products = () => {
+  const [products, setProducts] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
 
+  // Fetch products on mount
   useEffect(() => {
-    if (editingProduct) {
-      setProduct({ ...editingProduct, imageFile: null });
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      const res = await axiosInstance.get("/product");
+      setProducts(res.data);
+    } catch (error) {
+      console.error("Failed to fetch products", error);
     }
-  }, [editingProduct]);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setProduct((prevProduct) => ({
-      ...prevProduct,
-      [name]: value,
-      ...(name === "productType" && value === "delights" ? { beverageType: "" } : {}),
-    }));
   };
 
-  const handleFileChange = (e) => {
-    setProduct((prevProduct) => ({ ...prevProduct, imageFile: e.target.files[0] }));
+  const openModal = () => {
+    setEditingProduct(null);
+    setIsModalOpen(true);
   };
 
-  // Handle ingredient input changes
-  const handleIngredientChange = (index, field, value) => {
-    setProduct((prevProduct) => {
-      const updatedIngredients = [...prevProduct.ingredients];
-      updatedIngredients[index][field] = value;
-      return { ...prevProduct, ingredients: updatedIngredients };
-    });
+  const closeModal = () => {
+    setIsModalOpen(false);
   };
 
-  // Add new ingredient input field
-  const addIngredientField = () => {
-    setProduct((prevProduct) => ({
-      ...prevProduct,
-      ingredients: [...prevProduct.ingredients, { name: "", quantity: 1, unit: "pcs" }],
-    }));
-  };
+  const saveProduct = async (productData, imageFile) => {
+    const formData = new FormData();
+    formData.append("name", productData.name);
+    formData.append("price", productData.price);
+    formData.append("description", productData.description);
+    formData.append("productType", productData.productType);
 
-  // Remove ingredient input field
-  const removeIngredientField = (index) => {
-    setProduct((prevProduct) => {
-      const updatedIngredients = prevProduct.ingredients.filter((_, i) => i !== index);
-      return { ...prevProduct, ingredients: updatedIngredients };
-    });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!product.name || !product.price || !product.description || !product.productType) {
-      alert("Please fill out all required fields.");
-      return;
+    if (productData.productType === "beverages") {
+      formData.append("beverageType", productData.beverageType);
     }
 
-    if (product.productType === "beverages" && !product.beverageType) {
-      alert("Please select a beverage type.");
-      return;
+    if (imageFile) {
+      formData.append("image", imageFile);
     }
 
-    if (product.ingredients.some((ingredient) => !ingredient.name)) {
-      alert("Please provide names for all ingredients.");
-      return;
-    }
+    formData.append("ingredients", JSON.stringify(productData.ingredients));
 
-    saveProduct(product, product.imageFile);
-    closeModal();
+    try {
+      const response = await axiosInstance.post("/product/create", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      console.log("Product created:", response.data);
+      fetchProducts(); // Refresh list
+    } catch (error) {
+      console.error("Failed to save product:", error);
+      alert("There was an error saving the product.");
+    }
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-800 bg-opacity-50 flex justify-center items-center z-50">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-lg">
-        <h2 className="text-2xl font-bold mb-4">{editingProduct ? "Edit Product" : "Add Product"}</h2>
-        <form onSubmit={handleSubmit}>
-          <input type="text" name="name" placeholder="Product Name" value={product.name} onChange={handleChange} className="w-full p-2 border mb-4 rounded-lg" required />
-          <input type="number" name="price" placeholder="Price" value={product.price} onChange={handleChange} className="w-full p-2 border mb-4 rounded-lg" required />
-          <textarea name="description" placeholder="Description" value={product.description} onChange={handleChange} className="w-full p-2 border mb-4 rounded-lg" required />
-
-          <select name="productType" value={product.productType} onChange={handleChange} className="w-full p-2 border mb-4 rounded-lg" required>
-            <option value="beverages">Beverages</option>
-            <option value="delights">Delights</option>
-          </select>
-
-          {product.productType === "beverages" && (
-            <select name="beverageType" value={product.beverageType} onChange={handleChange} className="w-full p-2 border mb-4 rounded-lg">
-              <option value="">Select Beverage Type</option>
-              <option value="espresso based">Espresso Based</option>
-              <option value="coffee based frappe">Coffee Based Frappe</option>
-              <option value="non-coffee based">Non-Coffee Based</option>
-              <option value="non-coffee based frappe">Non-Coffee Based Frappe</option>
-              <option value="refreshments">Refreshments</option>
-              <option value="cold brew specials">Cold Brew Specials</option>
-            </select>
-          )}
-
-          <input type="file" name="image" onChange={handleFileChange} className="w-full p-2 border mb-4 rounded-lg" />
-
-          {/* Ingredient Input Fields */}
-          <div className="mb-4">
-            <h3 className="font-bold mb-2">Recipe Ingredients:</h3>
-            {product.ingredients.map((ingredient, index) => (
-              <div key={index} className="flex items-center mb-2 gap-2">
-                <input type="text" placeholder="Ingredient Name" value={ingredient.name} onChange={(e) => handleIngredientChange(index, "name", e.target.value)} className="w-2/3 p-2 border rounded-lg" required />
-                <input type="number" min="1" placeholder="Qty" value={ingredient.quantity} onChange={(e) => handleIngredientChange(index, "quantity", e.target.value)} className="w-20 border p-1 rounded-lg" required />
-                <select value={ingredient.unit} onChange={(e) => handleIngredientChange(index, "unit", e.target.value)} className="w-20 border p-1 rounded-lg">
-                  <option value="pcs">pcs</option>
-                  <option value="g">g</option>
-                  <option value="ml">ml</option>
-                </select>
-                <button type="button" onClick={() => removeIngredientField(index)} className="bg-red-500 text-white px-3 py-1 rounded-lg">X</button>
-              </div>
-            ))}
-            <button type="button" onClick={addIngredientField} className="bg-blue-500 text-white px-3 py-1 rounded-lg mt-2">+ Add Ingredient</button>
-          </div>
-
-          <div className="flex justify-end gap-4 mt-4">
-            <button type="button" onClick={closeModal} className="bg-gray-600 text-white px-6 py-2 rounded-lg">Cancel</button>
-            <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded-lg">Save</button>
-          </div>
-        </form>
+    <div className="p-4">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-3xl font-bold">Products</h1>
+        <button
+          onClick={openModal}
+          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+        >
+          + Add Product
+        </button>
       </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {products.map((product) => (
+          <div key={product._id} className="border p-4 rounded shadow">
+            <h2 className="text-xl font-semibold">{product.name}</h2>
+            <p className="text-gray-600">{product.description}</p>
+            <p className="text-sm">₱{product.price}</p>
+            <p className="text-sm italic">{product.productType}</p>
+            {product.image && (
+              <img
+                src={`/uploads/${product.image}`}
+                alt={product.name}
+                className="mt-2 max-h-40 object-cover rounded"
+              />
+            )}
+          </div>
+        ))}
+      </div>
+
+      {isModalOpen && (
+        <ProductModal
+          closeModal={closeModal}
+          saveProduct={saveProduct}
+          editingProduct={editingProduct}
+        />
+      )}
     </div>
   );
 };
 
-export default ProductModal;
+export default Products;
