@@ -95,7 +95,7 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
     }
 
     // Validate price
-    if (isNaN(parseFloat(product.price)) {
+    if (isNaN(parseFloat(product.price))) {
       alert("Please enter a valid price.");
       return;
     }
