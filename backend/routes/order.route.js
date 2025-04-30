@@ -230,22 +230,7 @@ router.put("/update-status/:orderId", async (req, res) => {
 
     const wasPending = order.status === "Pending";
     const willAffectPending = wasPending || status === "Pending";
-
-    if ((status === "Out for Delivery") && order.status !== status) {
-      for (const item of order.items) {
-        const product = item.product;
-        if (product) {
-          if (product.stock < item.quantity) {
-            return res.status(400).json({
-              message: `Insufficient stock for product: ${product.name}`,
-            });
-          }
-          product.stock -= item.quantity;
-          await product.save();
-        }
-      }
-    }
-
+    
     order.status = status;
     await order.save();
 
