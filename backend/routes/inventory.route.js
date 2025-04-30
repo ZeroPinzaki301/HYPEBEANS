@@ -1,291 +1,108 @@
-import React, { useState, useEffect } from "react";
-import axiosInstance from "../utils/axiosInstance";
-import { Link } from "react-router-dom";
+import express from "express";
+import Ingredient from "../models/Ingredient.model.js";
 
-const AdminInventory = () => {
-  const [ingredients, setIngredients] = useState([]);
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newIngredient, setNewIngredient] = useState({
-    name: "",
-    quantity: 0,
-    unit: "g"
-  });
-  const [addError, setAddError] = useState("");
+const router = express.Router();
 
-  // Fetch ingredient list on page load
-  const fetchIngredients = async () => {
-    try {
-      const { data } = await axiosInstance.get("/api/ingredients");
-      setIngredients(data);
-    } catch (err) {
-      setError(err.response?.data?.message || "Error fetching ingredients.");
-    } finally {
-      setIsLoading(false);
+// 🥬 Get All Ingredients
+router.get("/", async (req, res) => {
+  try {
+    const ingredients = await Ingredient.find();
+    res.json(ingredients);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch ingredients" });
+  }
+});
+
+// 🥬 Get Ingredient by ID
+router.get("/:id", async (req, res) => {
+  try {
+    const ingredient = await Ingredient.findById(req.params.id);
+    if (!ingredient) return res.status(404).json({ error: "Ingredient not found" });
+    res.json(ingredient);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch ingredient" });
+  }
+});
+
+// 🥬 Check if Ingredient Exists
+router.post("/check", async (req, res) => {
+  const { name } = req.body;
+  try {
+    const ingredient = await Ingredient.findOne({ name });
+    if (ingredient) {
+      return res.json({ exists: true, ingredient });
     }
-  };
+    res.json({ exists: false });
+  } catch (error) {
+    res.status(500).json({ error: "Error checking ingredient" });
+  }
+});
 
-  useEffect(() => {
-    fetchIngredients();
-  }, []);
-
-  const handleRestock = async (ingredientId) => {
-    const quantityStr = prompt("Enter quantity to add:");
-    const quantityToAdd = parseFloat(quantityStr);
-
-    if (isNaN(quantityToAdd)) {
-      alert("Please enter a valid number.");
-      return;
-    }
-
-    if (quantityToAdd <= 0) {
-      alert("Quantity must be greater than zero.");
-      return;
-    }
-
-    try {
-      // First get current ingredient to show current quantity in prompt
-      const currentIngredient = ingredients.find(ing => ing._id === ingredientId);
-      const currentQuantity = currentIngredient?.quantity || 0;
-      
-      const confirmMessage = `Current quantity: ${currentQuantity} ${currentIngredient?.unit}\n` +
-                           `Adding: ${quantityToAdd} ${currentIngredient?.unit}\n` +
-                           `New total will be: ${currentQuantity + quantityToAdd} ${currentIngredient?.unit}\n\n` +
-                           `Confirm restock?`;
-      
-      if (!window.confirm(confirmMessage)) {
-        return;
-      }
-
-      await axiosInstance.put(`/api/ingredients/${ingredientId}`, { 
-        $inc: { quantity: quantityToAdd } // Using $inc to add to existing quantity
-      });
-      
-      alert("Ingredient restocked successfully!");
-      fetchIngredients(); // Refresh inventory list
-    } catch (err) {
-      console.error(err);
-      alert("Failed to restock ingredient.");
-    }
-  };
-
-  const handleDelete = async (ingredientId, ingredientName) => {
-    if (!window.confirm(`Are you sure you want to delete "${ingredientName}"? This action cannot be undone.`)) {
-      return;
+// 🥬 Create New Ingredient
+router.post("/create", async (req, res) => {
+  const { name, quantity, unit } = req.body;
+  try {
+    const existingIngredient = await Ingredient.findOne({ name });
+    if (existingIngredient) {
+      return res.status(400).json({ error: "Ingredient already exists" });
     }
 
-    try {
-      await axiosInstance.delete(`/api/ingredients/${ingredientId}`);
-      alert("Ingredient deleted successfully!");
-      fetchIngredients(); // Refresh the list
-    } catch (err) {
-      console.error(err);
-      alert("Failed to delete ingredient. It may be used in products.");
+    const newIngredient = new Ingredient({ name, quantity, unit });
+    await newIngredient.save();
+    res.status(201).json(newIngredient);
+  } catch (error) {
+    res.status(400).json({ error: "Failed to add ingredient" });
+  }
+});
+
+// 🥬 Update Ingredient
+router.put("/:id", async (req, res) => {
+  try {
+    const { quantity, $inc } = req.body;
+    let update = {};
+
+    // Handle both direct updates and incremental updates
+    if (typeof quantity !== 'undefined') {
+      // Direct quantity update (replace existing value)
+      update.quantity = quantity;
+    } else if ($inc && typeof $inc.quantity !== 'undefined') {
+      // Incremental update (add to existing value)
+      update.$inc = { quantity: $inc.quantity };
+    } else {
+      return res.status(400).json({ error: "Invalid update operation" });
     }
-  };
 
-  const handleAddIngredient = async (e) => {
-    e.preventDefault();
-    setAddError("");
-
-    if (!newIngredient.name.trim()) {
-      setAddError("Ingredient name is required");
-      return;
+    // Validate the quantity won't go negative
+    if (update.quantity !== undefined && update.quantity < 0) {
+      return res.status(400).json({ error: "Quantity cannot be negative" });
     }
 
-    if (newIngredient.quantity < 0) {
-      setAddError("Quantity cannot be negative");
-      return;
+    const updatedIngredient = await Ingredient.findByIdAndUpdate(
+      req.params.id,
+      update,
+      { new: true }
+    );
+
+    if (!updatedIngredient) {
+      return res.status(404).json({ error: "Ingredient not found" });
     }
 
-    try {
-      // First check if ingredient already exists
-      const { data } = await axiosInstance.post("/api/ingredients/check", { 
-        name: newIngredient.name 
-      });
+    res.json(updatedIngredient);
+  } catch (error) {
+    console.error("Error updating ingredient:", error);
+    res.status(400).json({ error: "Failed to update ingredient" });
+  }
+});
 
-      if (data.exists) {
-        setAddError("An ingredient with this name already exists");
-        return;
-      }
+// 🥬 Delete Ingredient
+router.delete("/:id", async (req, res) => {
+  try {
+    const deletedIngredient = await Ingredient.findByIdAndDelete(req.params.id);
+    if (!deletedIngredient) return res.status(404).json({ error: "Ingredient not found" });
+    res.json({ message: "Ingredient deleted" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to delete ingredient" });
+  }
+});
 
-      // Create the new ingredient
-      await axiosInstance.post("/api/ingredients/create", newIngredient);
-      
-      // Reset form and close modal
-      setNewIngredient({
-        name: "",
-        quantity: 0,
-        unit: "g"
-      });
-      setShowAddModal(false);
-      
-      // Refresh the list
-      fetchIngredients();
-    } catch (err) {
-      console.error(err);
-      setAddError(err.response?.data?.error || "Failed to add ingredient");
-    }
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setNewIngredient(prev => ({
-      ...prev,
-      [name]: name === "quantity" ? parseFloat(value) || 0 : value
-    }));
-  };
-
-  // Add Ingredient Modal
-  const AddIngredientModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
-        <h2 className="text-2xl font-bold mb-4">Add New Ingredient</h2>
-        
-        {addError && (
-          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg">
-            {addError}
-          </div>
-        )}
-        
-        <form onSubmit={handleAddIngredient}>
-          <div className="mb-4">
-            <label className="block text-gray-700 mb-2">Ingredient Name*</label>
-            <input
-              type="text"
-              name="name"
-              value={newIngredient.name}
-              onChange={handleInputChange}
-              className="w-full p-2 border rounded-lg"
-              required
-            />
-          </div>
-          
-          <div className="mb-4">
-            <label className="block text-gray-700 mb-2">Initial Quantity</label>
-            <input
-              type="number"
-              name="quantity"
-              value={newIngredient.quantity}
-              onChange={handleInputChange}
-              className="w-full p-2 border rounded-lg"
-              min="0"
-              step="0.01"
-            />
-          </div>
-          
-          <div className="mb-6">
-            <label className="block text-gray-700 mb-2">Unit</label>
-            <select
-              name="unit"
-              value={newIngredient.unit}
-              onChange={handleInputChange}
-              className="w-full p-2 border rounded-lg"
-            >
-              <option value="g">g (grams)</option>
-              <option value="ml">ml (milliliters)</option>
-              <option value="pcs">pcs (pieces)</option>
-            </select>
-          </div>
-          
-          <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => setShowAddModal(false)}
-              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-            >
-              Add Ingredient
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="bg-gray-100 min-h-screen p-6 font-serif">
-      <Link
-        to="/admin-dashboard"
-        className="absolute top-4 left-4 bg-zinc-800 hover:bg-zinc-600 text-white px-4 py-2 rounded-lg shadow-md transition duration-200 font-semibold"
-      >
-        Back to Dashboard
-      </Link>
-
-      <h1 className="text-center text-4xl font-bold mb-8">Ingredient Inventory</h1>
-
-      <div className="flex justify-end mb-6">
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg shadow-md transition duration-200 font-semibold"
-        >
-          Add New Ingredient
-        </button>
-      </div>
-
-      {error && (
-        <p className="text-red-500 bg-red-100 p-4 rounded-lg text-center mb-4">{error}</p>
-      )}
-
-      {isLoading ? (
-        <p className="text-gray-500 text-center">Loading inventory...</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse border border-gray-300">
-            <thead>
-              <tr className="bg-gray-200">
-                <th className="border px-4 py-2 text-left">Ingredient Name</th>
-                <th className="border px-4 py-2 text-left">Quantity</th>
-                <th className="border px-4 py-2 text-left">Unit</th>
-                <th className="border px-4 py-2 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ingredients.length > 0 ? (
-                ingredients.map((ingredient) => (
-                  <tr key={ingredient._id}>
-                    <td className="border px-4 py-2">{ingredient.name}</td>
-                    <td className="border px-4 py-2">{ingredient.quantity}</td>
-                    <td className="border px-4 py-2">{ingredient.unit}</td>
-                    <td className="border px-4 py-2 text-center">
-                      <div className="flex justify-center space-x-2">
-                        <button
-                          onClick={() => handleRestock(ingredient._id)}
-                          className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded-lg text-sm shadow-md transition duration-200"
-                        >
-                          Restock
-                        </button>
-                        <button
-                          onClick={() => handleDelete(ingredient._id, ingredient.name)}
-                          className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded-lg text-sm shadow-md transition duration-200"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="4" className="border px-4 py-2 text-center text-gray-500">
-                    No ingredients available.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {showAddModal && <AddIngredientModal />}
-    </div>
-  );
-};
-
-export default AdminInventory;
+export default router;
