@@ -5,7 +5,6 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
     name: "",
     price: "",
     description: "",
-    stock: "",
     productType: "beverages", // Default value
     beverageType: "",
     imageFile: null,
@@ -43,7 +42,7 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
     e.preventDefault();
 
     // Validate the required fields
-    if (!product.name || !product.price || !product.description || !product.stock || !product.productType) {
+    if (!product.name || !product.price || !product.description || !product.productType) {
       alert("Please fill out all required fields.");
       return;
     }
@@ -92,15 +91,6 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
             className="w-full p-2 border mb-4 rounded-lg"
             required
           ></textarea>
-          <input
-            type="number"
-            name="stock"
-            placeholder="Stock"
-            value={product.stock}
-            onChange={handleChange}
-            className="w-full p-2 border mb-4 rounded-lg"
-            required
-          />
           <select
             name="productType"
             value={product.productType}
