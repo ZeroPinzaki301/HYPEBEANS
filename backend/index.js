@@ -11,7 +11,7 @@ import orderRouter from "./routes/order.route.js";
 import cartRouter from "./routes/cart.route.js";
 import messageRouter from "./routes/message.route.js";
 import paymentRouter from "./routes/payment.route.js";
-import inventoryRouter from "./routes/inventory.route.js;
+import inventoryRouter from "./routes/inventory.route.js";
 import { notifyAdminOfLowStock } from "./utils/lowStockNotifier.js";
 import path from "path";
 import { fileURLToPath } from "url";
