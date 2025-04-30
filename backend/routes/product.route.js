@@ -7,7 +7,9 @@ const router = express.Router();
 
 // Create Product Route (now storing ingredients directly in the product)
 router.post("/create", productUpload.single("image"), async (req, res) => {
-    const { name, price, description, productType, beverageType, ingredients } = req.body;
+    const { name, price, description, productType, beverageType } = req.body;
+    // Get ingredients from body (already parsed by Express)
+    const ingredients = req.body.ingredients; 
     const image = req.file ? `uploads/${req.file.filename}` : null;
 
     if (!name || !price || !description || !productType) {
@@ -16,34 +18,37 @@ router.post("/create", productUpload.single("image"), async (req, res) => {
     if (productType === "beverages" && !beverageType) {
         return res.status(400).json({ message: "Beverage type is required for beverages." });
     }
-    if (!ingredients || !Array.isArray(JSON.parse(ingredients))) {
+    if (!ingredients || !Array.isArray(ingredients)) {
         return res.status(400).json({ message: "Ingredients must be provided as an array." });
     }
 
     try {
-        const parsedIngredients = JSON.parse(ingredients);
-
         // Ensure ingredients exist in the inventory, create if needed
-        await Promise.all(parsedIngredients.map(async (ingredient) => {
+        await Promise.all(ingredients.map(async (ingredient) => {
             let existingIngredient = await Ingredient.findOne({ name: ingredient.name });
             if (!existingIngredient) {
-                await new Ingredient({
+                existingIngredient = new Ingredient({
                     name: ingredient.name,
-                    quantity: ingredient.quantity,
+                    quantity: 0, // Start with 0 quantity
                     unit: ingredient.unit || "pcs"
-                }).save();
+                });
+                await existingIngredient.save();
             }
         }));
 
-        // Save product with ingredient array directly
+        // Save product
         const newProduct = new Product({
             name,
-            price,
+            price: parseFloat(price),
             description,
             productType,
             beverageType: productType === "beverages" ? beverageType : undefined,
             image,
-            ingredients: parsedIngredients
+            ingredients: ingredients.map(ing => ({
+                name: ing.name,
+                quantity: parseFloat(ing.quantity),
+                unit: ing.unit || "pcs"
+            }))
         });
 
         await newProduct.save();
