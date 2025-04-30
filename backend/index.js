@@ -15,7 +15,6 @@ import { notifyAdminOfLowStock } from "./utils/lowStockNotifier.js";
 import path from "path";
 import { fileURLToPath } from "url";
 import os from "os";
-import mongoose from "mongoose";
 
 // Enhanced ES Modules fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -52,10 +51,10 @@ connectDB().catch(err => {
   process.exit(1);
 });
 
-// Create HTTP server
+// Create HTTP server with keep-alive settings
 const server = http.createServer(app);
-server.keepAliveTimeout = 60000;
-server.headersTimeout = 65000;
+server.keepAliveTimeout = 60000; // 60 seconds
+server.headersTimeout = 65000; // 65 seconds
 
 // Enhanced Socket.IO configuration
 const io = new Server(server, {
@@ -69,11 +68,12 @@ const io = new Server(server, {
     maxDisconnectionDuration: 2 * 60 * 1000,
     skipMiddlewares: true,
   },
+  // Production optimizations
   serveClient: process.env.NODE_ENV !== 'production',
-  path: '/socket.io'
+  path:'/socket.io'
 });
 
-// Socket.IO connection handling
+// Socket.IO enhanced connection handling
 io.on("connection", (socket) => {
   console.log(`⚡ New connection ${socket.id}`);
 
@@ -85,7 +85,7 @@ io.on("connection", (socket) => {
     console.log(`🚫 Client disconnected (${socket.id})`, reason);
   });
 
-  // Middleware for sensitive events
+  // Add authentication middleware for sensitive events
   socket.use((event, next) => {
     if (['privateEvent'].includes(event[0]) && !socket.user) {
       return next(new Error('Unauthorized'));
@@ -96,7 +96,7 @@ io.on("connection", (socket) => {
 
 export { io };
 
-// API Routes
+// API Routes with versioning
 app.use("/api/users", userRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/products", productRouter);
@@ -105,7 +105,7 @@ app.use("/api/cart", cartRouter);
 app.use("/api/messages", messageRouter);
 app.use("/api/payment-proof", paymentRouter);
 
-// Route validation
+// Add this after all app.use() routes
 app._router.stack.forEach(layer => {
   if (layer.route) {
     const path = layer.route.path;
@@ -123,7 +123,7 @@ app._router.stack.forEach(layer => {
   }
 });
 
-// Request logging
+// Enhanced request logging
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.ip} ${req.method} ${req.url}`);
   next();
@@ -140,21 +140,14 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads"), {
   }
 }));
 
-// Production frontend
+// Production configuration for frontend
 if (process.env.NODE_ENV === "production") {
   const staticPath = path.join(__dirname, "..", "frontend", "dist");
   console.log("🖥️ Serving production frontend from", staticPath);
 
-  // Security headers (UPDATED CSP)
+  // Security headers for production
   app.use((req, res, next) => {
-    res.setHeader('Content-Security-Policy', 
-      "default-src 'self'; " +
-      "script-src 'self' 'unsafe-inline'; " +
-      "style-src 'self' 'unsafe-inline'; " +
-      "img-src 'self' data: blob:; " +
-      "font-src 'self'; " +
-      "frame-src 'self' https://www.google.com;"
-    );
+    res.setHeader('Content-Security-Policy', "default-src 'self'");
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-XSS-Protection', '1; mode=block');
     next();
@@ -170,13 +163,13 @@ if (process.env.NODE_ENV === "production") {
     }
   }));
 
-  // SPA fallback
+  // Handle SPA routing
   app.get('*', (req, res) => {
     res.sendFile(path.join(staticPath, 'index.html'));
   });
 }
 
-// Health check
+// Enhanced health check
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
@@ -188,14 +181,14 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Low stock notification
+// Low stock notification with error handling
 const lowStockInterval = setInterval(() => {
   notifyAdminOfLowStock().catch(err => {
     console.error('Low stock notification error:', err);
   });
 }, 3600000);
 
-// Error handling
+// Centralized error handling
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;
   console.error(`[${new Date().toISOString()}] Error: ${err.message}`);
@@ -209,7 +202,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
+// 404 handler with JSON response
 app.use((req, res) => {
   res.status(404).json({ 
     error: 'Not Found',
@@ -217,7 +210,7 @@ app.use((req, res) => {
   });
 });
 
-// Server startup
+// Server startup with cluster support
 const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST || "0.0.0.0";
 
@@ -229,12 +222,13 @@ const startServer = () => {
   });
 };
 
-// Cluster support
+// Cluster mode for production
 if (process.env.NODE_ENV === 'production' && process.env.USE_CLUSTER === 'true') {
   import('cluster').then(cluster => {
     if (cluster.default.isPrimary) {
       console.log(`Primary ${process.pid} is running`);
       
+      // Fork workers
       for (let i = 0; i < os.cpus().length; i++) {
         cluster.default.fork();
       }
@@ -251,17 +245,18 @@ if (process.env.NODE_ENV === 'production' && process.env.USE_CLUSTER === 'true')
   startServer();
 }
 
-// Graceful shutdown
+// Graceful shutdown with cleanup
 const shutdown = async () => {
   console.log('🛑 Shutting down gracefully...');
-
+  
   clearInterval(lowStockInterval);
-
+  
   server.close(() => {
     console.log('Server closed');
     process.exit(0);
   });
 
+  // Force shutdown if server doesn't close in time
   setTimeout(() => {
     console.error('⚠️ Forcing shutdown');
     process.exit(1);
