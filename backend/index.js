@@ -105,7 +105,7 @@ app.use("/api/orders", orderRouter);
 app.use("/api/cart", cartRouter);
 app.use("/api/messages", messageRouter);
 app.use("/api/payment-proof", paymentRouter);
-app.use("/api/inventory", inventoryRouter);
+app.use("/api/ingredients", inventoryRouter);
 
 // Add this after all app.use() routes
 app._router.stack.forEach(layer => {
