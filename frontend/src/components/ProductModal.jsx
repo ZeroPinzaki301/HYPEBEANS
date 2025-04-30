@@ -20,14 +20,18 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
 
   useEffect(() => {
     if (editingProduct) {
+      // Make sure ingredients are properly formatted
+      const formattedIngredients = editingProduct.ingredients.map(ing => ({
+        ingredient: ing.ingredient._id || ing.ingredient,
+        quantityRequired: ing.quantityRequired,
+        // Store name for display purposes only (not sent to backend)
+        name: ing.ingredient?.name || 'Unknown Ingredient'
+      }));
+
       setProduct({
         ...editingProduct,
         imageFile: null,
-        // Ensure ingredients have names for display
-        ingredients: editingProduct.ingredients.map(ing => ({
-          ...ing,
-          name: ing.name || (ing.ingredient?.name || 'Unknown Ingredient')
-        }))
+        ingredients: formattedIngredients
       });
     }
   }, [editingProduct]);
@@ -46,7 +50,7 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
   };
 
   const handleAddIngredient = async () => {
-    if (!ingredientName.trim() || !ingredientQuantity || !ingredientUnit) {
+    if (!ingredientName.trim() || !ingredientQuantity) {
       setError("Please fill all ingredient fields");
       return;
     }
@@ -55,32 +59,33 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
       setError(null);
       const { data } = await axios.post("/api/ingredients/check", { name: ingredientName });
 
-      let ingredientEntry;
+      let ingredientId;
+      let ingredientDisplayName = ingredientName;
+
       if (data.exists) {
-        ingredientEntry = {
-          ingredient: data.ingredient._id,
-          quantityRequired: Number(ingredientQuantity),
-          unit: ingredientUnit,
-          name: ingredientName,
-        };
+        // Use existing ingredient
+        ingredientId = data.ingredient._id;
       } else {
-        const newIngredient = await axios.post("/api/ingredients/create", {
+        // Create new ingredient
+        const newIngredientResponse = await axios.post("/api/ingredients/create", {
           name: ingredientName,
-          quantity: 0, // Initial quantity set to 0, can be updated in inventory
+          quantity: 0, // Initial quantity set to 0
           unit: ingredientUnit,
         });
-
-        ingredientEntry = {
-          ingredient: newIngredient.data._id,
-          quantityRequired: Number(ingredientQuantity),
-          unit: ingredientUnit,
-          name: ingredientName,
-        };
+        ingredientId = newIngredientResponse.data._id;
       }
 
+      // Add ingredient to product with proper format for backend
       setProduct((prev) => ({
         ...prev,
-        ingredients: [...prev.ingredients, ingredientEntry],
+        ingredients: [
+          ...prev.ingredients, 
+          {
+            ingredient: ingredientId,
+            quantityRequired: Number(ingredientQuantity),
+            name: ingredientDisplayName // for display only
+          }
+        ],
       }));
 
       // Clear input fields
@@ -118,7 +123,17 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
     }
 
     try {
-      await saveProduct(product, product.imageFile);
+      // Prepare product data for backend - ensure ingredients are properly formatted
+      const productToSave = {
+        ...product,
+        // Format ingredients correctly for backend
+        ingredients: product.ingredients.map(ing => ({
+          ingredient: ing.ingredient, // Just the ID
+          quantityRequired: ing.quantityRequired
+        }))
+      };
+
+      await saveProduct(productToSave, product.imageFile);
       closeModal();
     } catch (err) {
       console.error("Error saving product:", err);
@@ -281,7 +296,7 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
                   {product.ingredients.map((ing, index) => (
                     <li key={index} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
                       <span>
-                        {ing.name} - {ing.quantityRequired} {ing.unit}
+                        {ing.name} - {ing.quantityRequired} {ingredientUnit}
                       </span>
                       <button 
                         type="button" 
