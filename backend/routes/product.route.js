@@ -8,43 +8,20 @@ const router = express.Router();
 // Create Product Route
 router.post("/create", productUpload.single("image"), async (req, res) => {
   try {
-    // Parse body from FormData
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-
-    const {
-      name,
-      price,
-      description,
-      productType,
-      beverageType,
-      ingredients
-    } = body;
-
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const { name, price, description, productType, beverageType, ingredients } = body;
     const image = req.file ? `uploads/${req.file.filename}` : null;
 
     if (!name || !price || !description || !productType) {
       return res.status(400).json({ message: "Missing required fields." });
     }
 
-    if (productType === "beverages" && !beverageType) {
-      return res.status(400).json({ message: "Beverage type is required for beverages." });
-    }
-
-    // Parse and format ingredients
-    let parsedIngredients = [];
-    if (ingredients) {
-      // Handle string or object format from frontend
-      const rawIngredients = typeof ingredients === 'string'
-        ? JSON.parse(ingredients)
-        : ingredients;
-
-      if (Array.isArray(rawIngredients)) {
-        parsedIngredients = rawIngredients.map(ing => ({
-          ingredient: ing.ingredient, // This should be the ObjectId
-          quantityRequired: Number(ing.quantityRequired)
-        }));
-      }
-    }
+    let parsedIngredients = Array.isArray(ingredients)
+      ? ingredients.map((ing) => ({
+          ingredient: ing.ingredient, // Storing ObjectId directly
+          quantityRequired: Number(ing.quantityRequired),
+        }))
+      : [];
 
     const newProduct = new Product({
       name,
@@ -53,20 +30,17 @@ router.post("/create", productUpload.single("image"), async (req, res) => {
       productType,
       beverageType,
       image,
-      ingredients: parsedIngredients
+      ingredients: parsedIngredients,
     });
 
     await newProduct.save();
-    
-    // Return populated ingredients for the frontend
+
+    // Return populated ingredients for frontend display
     const populatedProduct = await Product.findById(newProduct._id).populate("ingredients.ingredient");
-    
+
     res.status(201).json({ message: "Product created successfully", product: populatedProduct });
   } catch (error) {
     console.error("Error creating product:", error);
-    if (error.name === "ValidationError") {
-      return res.status(400).json({ message: error.message });
-    }
     res.status(500).json({ message: "Server Error", error: error.message });
   }
 });
