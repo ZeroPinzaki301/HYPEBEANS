@@ -7,11 +7,14 @@ const router = express.Router();
 
 // Create Product Route
 router.post("/create", productUpload.single("image"), async (req, res) => {
-    const { name, price, description, productType, beverageType, ingredients } = req.body;
+    // Parse the body if it's stringified (common with FormData)
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    
+    const { name, price, description, productType, beverageType, ingredients } = body;
     const image = req.file ? `uploads/${req.file.filename}` : null;
 
     // Validate required fields
-    if (!name || !price || !description || !productType || !ingredients) {
+    if (!name || !price || !description || !productType) {
       return res.status(400).json({ message: "Missing required fields." });
     }
     if (productType === "beverages" && !beverageType) {
@@ -19,12 +22,22 @@ router.post("/create", productUpload.single("image"), async (req, res) => {
     }
 
     try {
-      // Validate and map ingredients if provided
+      // Process ingredients
       let formattedIngredients = [];
       if (ingredients && Array.isArray(ingredients)) {
-        formattedIngredients = ingredients.map(ingredient => ({
-          ingredient: ingredient.ingredientId, // Should be an ObjectId referencing Ingredient
-          quantityRequired: ingredient.quantityRequired
+        formattedIngredients = await Promise.all(ingredients.map(async (ing) => {
+          // Check if we have the full ingredient object (from frontend)
+          if (ing.ingredient) {
+            return {
+              ingredient: ing.ingredient, // This should be the _id
+              quantityRequired: Number(ing.quantityRequired)
+            };
+          }
+          // Fallback if we just have the ID
+          return {
+            ingredient: ing,
+            quantityRequired: Number(ing.quantityRequired)
+          };
         }));
       }
 
@@ -41,6 +54,7 @@ router.post("/create", productUpload.single("image"), async (req, res) => {
       await newProduct.save();
       res.status(201).json({ message: "Product created successfully", product: newProduct });
     } catch (error) {
+      console.error("Error creating product:", error);
       if (error.name === "ValidationError") {
         return res.status(400).json({ message: error.message });
       }
