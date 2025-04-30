@@ -1,9 +1,9 @@
 import express from "express";
-import { Ingredient } from "../models/Inventory.model.js"; // Removed Recipe import
+import Ingredient from "../models/Ingredient.model.js";
 
 const router = express.Router();
 
-// 🥬 Ingredient Routes
+// 🥬 Get All Ingredients
 router.get("/ingredients", async (req, res) => {
   try {
     const ingredients = await Ingredient.find();
@@ -13,6 +13,7 @@ router.get("/ingredients", async (req, res) => {
   }
 });
 
+// 🥬 Get Ingredient by ID
 router.get("/ingredients/:id", async (req, res) => {
   try {
     const ingredient = await Ingredient.findById(req.params.id);
@@ -23,9 +24,30 @@ router.get("/ingredients/:id", async (req, res) => {
   }
 });
 
-router.post("/ingredients", async (req, res) => {
+// 🥬 Check if Ingredient Exists
+router.post("/ingredients/check", async (req, res) => {
+  const { name } = req.body;
   try {
-    const newIngredient = new Ingredient(req.body);
+    const ingredient = await Ingredient.findOne({ name });
+    if (ingredient) {
+      return res.json({ exists: true, ingredient });
+    }
+    res.json({ exists: false });
+  } catch (error) {
+    res.status(500).json({ error: "Error checking ingredient" });
+  }
+});
+
+// 🥬 Create New Ingredient
+router.post("/ingredients/create", async (req, res) => {
+  const { name, quantity, unit } = req.body;
+  try {
+    const existingIngredient = await Ingredient.findOne({ name });
+    if (existingIngredient) {
+      return res.status(400).json({ error: "Ingredient already exists" });
+    }
+
+    const newIngredient = new Ingredient({ name, quantity, unit });
     await newIngredient.save();
     res.status(201).json(newIngredient);
   } catch (error) {
@@ -33,6 +55,7 @@ router.post("/ingredients", async (req, res) => {
   }
 });
 
+// 🥬 Update Ingredient
 router.put("/ingredients/:id", async (req, res) => {
   try {
     const updatedIngredient = await Ingredient.findByIdAndUpdate(req.params.id, req.body, { new: true });
@@ -43,6 +66,7 @@ router.put("/ingredients/:id", async (req, res) => {
   }
 });
 
+// 🥬 Delete Ingredient
 router.delete("/ingredients/:id", async (req, res) => {
   try {
     const deletedIngredient = await Ingredient.findByIdAndDelete(req.params.id);
