@@ -147,8 +147,8 @@ if (process.env.NODE_ENV === "production") {
 
   // Security headers for production
   app.use((req, res, next) => {
-    res.setHeader('Content-Security-Policy', "default-src 'self'");
-    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Content-Security-Policy', "default-src 'self'; frame-src 'self' https://www.google.com");
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('X-XSS-Protection', '1; mode=block');
     next();
   });
