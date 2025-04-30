@@ -339,6 +339,5 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
       </div>
     </div>
   );
-};
 
 export default ProductModal;
