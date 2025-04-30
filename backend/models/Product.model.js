@@ -26,12 +26,8 @@ const productSchema = new mongoose.Schema(
               "refreshments",
               "cold brew specials",
             ],
-        },
-        ingredients: [{ 
-            name: { type: String, required: true }, 
-            quantity: { type: Number, required: true }, 
-            unit: { type: String, enum: ["g", "ml", "pcs"], required: true } 
-        }]       
+          },
+        
     },
     { timestamps: true }
 );
