@@ -10,7 +10,7 @@ const AdminInventory = () => {
   // Fetch ingredient list on page load
   const fetchIngredients = async () => {
     try {
-      const { data } = await axiosInstance.get("/api/inventory/ingredients");
+      const { data } = await axiosInstance.get("/api/ingredients"); // Updated route
       setIngredients(data);
     } catch (err) {
       setError(err.response?.data?.message || "Error fetching ingredients.");
@@ -33,7 +33,9 @@ const AdminInventory = () => {
     }
 
     try {
-      await axiosInstance.put(`/api/inventory/ingredients/${ingredientId}`, { quantity });
+      await axiosInstance.put(`/api/ingredients/${ingredientId}`, { 
+        quantity 
+      }); // Updated route
       alert("Ingredient restocked successfully!");
       fetchIngredients(); // Refresh inventory list
     } catch (err) {
