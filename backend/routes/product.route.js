@@ -1,6 +1,6 @@
 import express from 'express';
 import Product from '../models/Product.model.js';
-import { Recipe, Ingredient } from '../models/inventory.model.js'; // Using centralized inventory models
+import { Recipe, Ingredient } from '../models/Inventory.model.js'; // Using centralized inventory models
 import { productUpload } from '../utils/multer.js';
 
 const router = express.Router();
@@ -62,9 +62,6 @@ router.post("/create", productUpload.single("image"), async (req, res) => {
         res.status(500).json({ message: "Server Error", error: error.message });
     }
 });
-
-export default router;
-  
 
 // Update/Edit Product Route
 router.put("/update/:id", productUpload.single("image"), async (req, res) => {
