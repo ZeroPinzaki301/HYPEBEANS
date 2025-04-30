@@ -58,10 +58,38 @@ router.post("/create", async (req, res) => {
 // 🥬 Update Ingredient
 router.put("/:id", async (req, res) => {
   try {
-    const updatedIngredient = await Ingredient.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!updatedIngredient) return res.status(404).json({ error: "Ingredient not found" });
+    const { quantity, $inc } = req.body;
+    let update = {};
+
+    // Handle both direct updates and incremental updates
+    if (typeof quantity !== 'undefined') {
+      // Direct quantity update (replace existing value)
+      update.quantity = quantity;
+    } else if ($inc && typeof $inc.quantity !== 'undefined') {
+      // Incremental update (add to existing value)
+      update.$inc = { quantity: $inc.quantity };
+    } else {
+      return res.status(400).json({ error: "Invalid update operation" });
+    }
+
+    // Validate the quantity won't go negative
+    if (update.quantity !== undefined && update.quantity < 0) {
+      return res.status(400).json({ error: "Quantity cannot be negative" });
+    }
+
+    const updatedIngredient = await Ingredient.findByIdAndUpdate(
+      req.params.id,
+      update,
+      { new: true }
+    );
+
+    if (!updatedIngredient) {
+      return res.status(404).json({ error: "Ingredient not found" });
+    }
+
     res.json(updatedIngredient);
   } catch (error) {
+    console.error("Error updating ingredient:", error);
     res.status(400).json({ error: "Failed to update ingredient" });
   }
 });
