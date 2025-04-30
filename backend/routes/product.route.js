@@ -1,5 +1,6 @@
 import express from 'express';
 import Product from '../models/Product.model.js';
+import Ingredient from '../models/Ingredient.model.js';
 import { productUpload } from '../utils/multer.js';
 
 const router = express.Router();
