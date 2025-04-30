@@ -1,89 +1,33 @@
 import express from 'express';
 import Product from '../models/Product.model.js';
-import { Ingredient, Recipe } from '../models/Inventory.model.js';
 import { productUpload } from '../utils/multer.js';
-import mongoose from 'mongoose';
 
 const router = express.Router();
 
-// Create Product with Ingredients
+// Create Product Route
 router.post("/create", productUpload.single("image"), async (req, res) => {
-  const { name, price, description, productType, beverageType, ingredients } = req.body;
-  const image = req.file ? `uploads/${req.file.filename}` : null;
-
-  // Validate required fields
-  if (!name || !price || !description || !productType) {
-    return res.status(400).json({ message: "Missing required fields." });
-  }
-
-  if (productType === "beverages" && !beverageType) {
-    return res.status(400).json({ message: "Beverage type is required for beverages." });
-  }
-
-  try {
-    // Process ingredients
-    const ingredientRecords = [];
-    const parsedIngredients = JSON.parse(ingredients);
-
-    for (const ing of parsedIngredients) {
-      // Check if ingredient exists
-      let existingIngredient = await Ingredient.findOne({ name: ing.name });
-
-      // If not exists, create new ingredient
-      if (!existingIngredient) {
-        existingIngredient = new Ingredient({
-          name: ing.name,
-          quantity: 0, // Start with 0 stock
-          unit: ing.unit || 'g',
-        });
-        await existingIngredient.save();
-      }
-
-      ingredientRecords.push({
-        ingredient: existingIngredient._id,
-        quantityRequired: ing.quantity
-      });
+    const { name, price, description, productType, beverageType } = req.body;
+    const image = req.file ? `uploads/${req.file.filename}` : null;
+  
+    // Validate required fields
+    if (!name || !price || !description || !productType) {
+      return res.status(400).json({ message: "Missing required fields." });
     }
-
-    // Create recipe
-    const newRecipe = new Recipe({
-      ingredients: ingredientRecords
-    });
-    await newRecipe.save();
-
-    // Create product
-    const newProduct = new Product({
-      name,
-      price: parseFloat(price),
-      description,
-      productType,
-      beverageType: productType === "beverages" ? beverageType : undefined,
-      image,
-      recipe: newRecipe._id
-    });
-    await newProduct.save();
-
-    // Update recipe with product reference
-    newRecipe.product = newProduct._id;
-    await newRecipe.save();
-
-    res.status(201).json({ 
-      message: "Product created successfully",
-      product: newProduct,
-      recipe: newRecipe
-    });
-
-  } catch (error) {
-    console.error("Error creating product:", error);
-    res.status(500).json({ 
-      message: "Server Error", 
-      error: error.message,
-      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
-    });
-  }
+    if (productType === "beverages" && !beverageType) {
+      return res.status(400).json({ message: "Beverage type is required for beverages." });
+    }
+  
+    try {
+      const newProduct = new Product({ name, price, description, productType, beverageType, image });
+      await newProduct.save();
+      res.status(201).json({ message: "Product created successfully", product: newProduct });
+    } catch (error) {
+      if (error.name === "ValidationError") {
+        return res.status(400).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Server Error", error: error.message });
+    }
 });
-
-// ... (keep your other routes)
   
 
 // Update/Edit Product Route
