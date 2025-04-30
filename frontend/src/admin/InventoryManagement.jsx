@@ -10,7 +10,7 @@ const AdminInventory = () => {
   // Fetch ingredient list on page load
   const fetchIngredients = async () => {
     try {
-      const { data } = await axiosInstance.get("/api/ingredients"); // Updated route
+      const { data } = await axiosInstance.get("/api/ingredients");
       setIngredients(data);
     } catch (err) {
       setError(err.response?.data?.message || "Error fetching ingredients.");
@@ -24,18 +24,37 @@ const AdminInventory = () => {
   }, []);
 
   const handleRestock = async (ingredientId) => {
-    const quantityStr = prompt("Enter quantity to restock:");
-    const quantity = parseFloat(quantityStr);
+    const quantityStr = prompt("Enter quantity to add:");
+    const quantityToAdd = parseFloat(quantityStr);
 
-    if (isNaN(quantity) || quantity <= 0) {
-      alert("Invalid quantity entered.");
+    if (isNaN(quantityToAdd) {
+      alert("Please enter a valid number.");
+      return;
+    }
+
+    if (quantityToAdd <= 0) {
+      alert("Quantity must be greater than zero.");
       return;
     }
 
     try {
+      // First get current ingredient to show current quantity in prompt
+      const currentIngredient = ingredients.find(ing => ing._id === ingredientId);
+      const currentQuantity = currentIngredient?.quantity || 0;
+      
+      const confirmMessage = `Current quantity: ${currentQuantity} ${currentIngredient?.unit}\n` +
+                           `Adding: ${quantityToAdd} ${currentIngredient?.unit}\n` +
+                           `New total will be: ${currentQuantity + quantityToAdd} ${currentIngredient?.unit}\n\n` +
+                           `Confirm restock?`;
+      
+      if (!window.confirm(confirmMessage)) {
+        return;
+      }
+
       await axiosInstance.put(`/api/ingredients/${ingredientId}`, { 
-        quantity 
-      }); // Updated route
+        $inc: { quantity: quantityToAdd } // Using $inc to add to existing quantity
+      });
+      
       alert("Ingredient restocked successfully!");
       fetchIngredients(); // Refresh inventory list
     } catch (err) {
