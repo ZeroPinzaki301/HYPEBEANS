@@ -3,29 +3,29 @@ import axiosInstance from "../utils/axiosInstance";
 import { Link } from "react-router-dom";
 
 const AdminInventory = () => {
-  const [products, setProducts] = useState([]); // Store product details
-  const [error, setError] = useState(""); // Handle errors
-  const [isLoading, setIsLoading] = useState(true); // Loading state
+  const [ingredients, setIngredients] = useState([]);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch product list on page load
-  const fetchProducts = async () => {
+  // Fetch ingredient list on page load
+  const fetchIngredients = async () => {
     try {
-      const { data } = await axiosInstance.get("/api/products");
-      setProducts(data);
+      const { data } = await axiosInstance.get("/api/inventory/ingredients");
+      setIngredients(data);
     } catch (err) {
-      setError(err.response?.data?.message || "Error fetching products.");
+      setError(err.response?.data?.message || "Error fetching ingredients.");
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchProducts();
+    fetchIngredients();
   }, []);
 
-  const handleRestock = async (productId) => {
+  const handleRestock = async (ingredientId) => {
     const quantityStr = prompt("Enter quantity to restock:");
-    const quantity = parseInt(quantityStr, 10);
+    const quantity = parseFloat(quantityStr);
 
     if (isNaN(quantity) || quantity <= 0) {
       alert("Invalid quantity entered.");
@@ -33,12 +33,12 @@ const AdminInventory = () => {
     }
 
     try {
-      await axiosInstance.put(`/api/products/restock/${productId}`, { quantity });
-      alert("Product restocked successfully!");
-      fetchProducts(); // refresh product list
+      await axiosInstance.put(`/api/inventory/ingredients/${ingredientId}`, { quantity });
+      alert("Ingredient restocked successfully!");
+      fetchIngredients(); // Refresh inventory list
     } catch (err) {
       console.error(err);
-      alert("Failed to restock product.");
+      alert("Failed to restock ingredient.");
     }
   };
 
@@ -51,12 +51,10 @@ const AdminInventory = () => {
         Back to Dashboard
       </Link>
 
-      <h1 className="text-center text-4xl font-bold mb-8">Inventory Management</h1>
+      <h1 className="text-center text-4xl font-bold mb-8">Ingredient Inventory</h1>
 
       {error && (
-        <p className="text-red-500 bg-red-100 p-4 rounded-lg text-center mb-4">
-          {error}
-        </p>
+        <p className="text-red-500 bg-red-100 p-4 rounded-lg text-center mb-4">{error}</p>
       )}
 
       {isLoading ? (
@@ -66,31 +64,22 @@ const AdminInventory = () => {
           <table className="min-w-full border-collapse border border-gray-300">
             <thead>
               <tr className="bg-gray-200">
-                <th className="border px-4 py-2 text-left">Product Name</th>
-                <th className="border px-4 py-2 text-left">Price</th>
-                <th className="border px-4 py-2 text-left">Stock</th>
+                <th className="border px-4 py-2 text-left">Ingredient Name</th>
+                <th className="border px-4 py-2 text-left">Quantity</th>
+                <th className="border px-4 py-2 text-left">Unit</th>
                 <th className="border px-4 py-2 text-left">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {products.length > 0 ? (
-                products.map((product) => (
-                  <tr
-                    key={product._id}
-                    className={`${
-                      product.stock < 5
-                        ? "bg-red-100"
-                        : product.stock < 10
-                        ? "bg-yellow-100"
-                        : ""
-                    }`}
-                  >
-                    <td className="border px-4 py-2">{product.name}</td>
-                    <td className="border px-4 py-2">₱{product.price.toFixed(2)}</td>
-                    <td className="border px-4 py-2">{product.stock}</td>
+              {ingredients.length > 0 ? (
+                ingredients.map((ingredient) => (
+                  <tr key={ingredient._id}>
+                    <td className="border px-4 py-2">{ingredient.name}</td>
+                    <td className="border px-4 py-2">{ingredient.quantity}</td>
+                    <td className="border px-4 py-2">{ingredient.unit}</td>
                     <td className="border px-4 py-2">
                       <button
-                        onClick={() => handleRestock(product._id)}
+                        onClick={() => handleRestock(ingredient._id)}
                         className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded-lg text-sm shadow-md transition duration-200"
                       >
                         Restock
@@ -101,7 +90,7 @@ const AdminInventory = () => {
               ) : (
                 <tr>
                   <td colSpan="4" className="border px-4 py-2 text-center text-gray-500">
-                    No products available.
+                    No ingredients available.
                   </td>
                 </tr>
               )}
