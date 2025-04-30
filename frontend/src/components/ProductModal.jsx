@@ -75,40 +75,28 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
       setError("Please select an ingredient and specify quantity");
       return;
     }
-
-    // Find the selected ingredient from available ingredients
-    const ingredientToAdd = availableIngredients.find(
-      ing => ing._id === selectedIngredient
-    );
-
-    if (!ingredientToAdd) {
-      setError("Selected ingredient not found");
-      return;
-    }
-
-    // Check if ingredient is already added
-    const isAlreadyAdded = product.ingredients.some(
-      ing => ing.ingredient === selectedIngredient
-    );
-
+  
+    // Check if ingredient already exists
+    const isAlreadyAdded = product.ingredients.some(ing => ing.ingredient === selectedIngredient);
     if (isAlreadyAdded) {
       setError("This ingredient is already added to the product");
       return;
     }
-
-    // Add ingredient to product
+  
+    // Add only the ingredient ID and required quantity
     setProduct((prev) => ({
       ...prev,
       ingredients: [
         ...prev.ingredients,
-        {
-          ingredient: selectedIngredient,
-          quantityRequired: Number(ingredientQuantity),
-          name: ingredientToAdd.name,
-          unit: ingredientToAdd.unit
-        }
+        { ingredient: selectedIngredient, quantityRequired: Number(ingredientQuantity) }
       ],
-    }));
+  }));
+  
+    // Clear selections
+    setSelectedIngredient("");
+    setIngredientQuantity("");
+    setError(null);
+  };
 
     // Clear selection
     setSelectedIngredient("");
