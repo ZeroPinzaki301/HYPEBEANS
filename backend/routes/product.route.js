@@ -2,27 +2,56 @@ import express from 'express';
 import Product from '../models/Product.model.js';
 import { Ingredient } from '../models/Inventory.model.js';
 import { productUpload } from '../utils/multer.js';
-
 const router = express.Router();
 
-// Create Product Route (now storing ingredients directly in the product)
+// Create Product Route
 router.post("/create", productUpload.single("image"), async (req, res) => {
-    const { name, price, description, productType, beverageType } = req.body;
-    // Get ingredients from body (already parsed by Express)
-    const ingredients = req.body.ingredients; 
-    const image = req.file ? `uploads/${req.file.filename}` : null;
-
-    if (!name || !price || !description || !productType) {
-        return res.status(400).json({ message: "Missing required fields." });
-    }
-    if (productType === "beverages" && !beverageType) {
-        return res.status(400).json({ message: "Beverage type is required for beverages." });
-    }
-    if (!ingredients || !Array.isArray(ingredients)) {
-        return res.status(400).json({ message: "Ingredients must be provided as an array." });
-    }
-
     try {
+        const { name, price, description, productType, beverageType } = req.body;
+        
+        // Parse ingredients from JSON string
+        let ingredients = [];
+        try {
+            if (req.body.ingredients) {
+                ingredients = JSON.parse(req.body.ingredients);
+            }
+        } catch (err) {
+            return res.status(400).json({ message: "Invalid ingredients format. Please provide a valid JSON array." });
+        }
+
+        // Get image path if uploaded
+        const image = req.file ? `uploads/${req.file.filename}` : null;
+        
+        // Validate required fields
+        if (!name || !price || !description || !productType) {
+            return res.status(400).json({ message: "Missing required fields." });
+        }
+        
+        if (productType === "beverages" && !beverageType) {
+            return res.status(400).json({ message: "Beverage type is required for beverages." });
+        }
+        
+        if (!Array.isArray(ingredients) || ingredients.length === 0) {
+            return res.status(400).json({ message: "Ingredients must be provided as a non-empty array." });
+        }
+
+        // Process variants if provided
+        const variants = {};
+        
+        if (req.body['variants[hot][price]']) {
+            variants.hot = {
+                price: parseFloat(req.body['variants[hot][price]']),
+                stock: parseInt(req.body['variants[hot][stock]'] || 0)
+            };
+        }
+        
+        if (req.body['variants[iced][price]']) {
+            variants.iced = {
+                price: parseFloat(req.body['variants[iced][price]']),
+                stock: parseInt(req.body['variants[iced][stock]'] || 0)
+            };
+        }
+
         // Ensure ingredients exist in the inventory, create if needed
         await Promise.all(ingredients.map(async (ingredient) => {
             let existingIngredient = await Ingredient.findOne({ name: ingredient.name });
@@ -48,7 +77,8 @@ router.post("/create", productUpload.single("image"), async (req, res) => {
                 name: ing.name,
                 quantity: parseFloat(ing.quantity),
                 unit: ing.unit || "pcs"
-            }))
+            })),
+            variants: Object.keys(variants).length > 0 ? variants : undefined
         });
 
         await newProduct.save();
