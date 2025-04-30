@@ -95,7 +95,7 @@ const ProductsPage = () => {
                     <Link to={`/products/${product._id}`} key={product._id}>
                       <div className="bg-zinc-800 p-4 md:py-7 rounded-lg shadow-md">
                         <img
-                          src={`https://hypebeans.onrender.com/uploads/${product.image}`}
+                          src={`https://hypebeans.onrender.com/${product.image}`}
                           alt={product.name}
                           className="h-auto aspect-square object-cover mx-auto rounded-full mb-4 w-[70%] md:w-[60%]"
                         />
