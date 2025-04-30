@@ -6,7 +6,6 @@ import { IoIosAdd } from "react-icons/io";
 
 const ManageProducts = () => {
   const [products, setProducts] = useState([]);
-  const [lowStock, setLowStock] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [error, setError] = useState("");
@@ -26,17 +25,7 @@ const ManageProducts = () => {
       }
     };
 
-    const fetchLowStockProducts = async () => {
-      try {
-        const { data } = await axiosInstance.get("/api/products/low-stock");
-        setLowStock(data);
-      } catch (err) {
-        console.error("Fetch Low-Stock Products Error:", err.response?.data?.message || err.message);
-      }
-    };
-
     fetchProducts();
-    fetchLowStockProducts();
   }, []);
 
   // Add/Edit Product with Multer for image upload
@@ -45,7 +34,6 @@ const ManageProducts = () => {
     formData.append("name", product.name);
     formData.append("price", product.price);
     formData.append("description", product.description);
-    formData.append("stock", product.stock);
     formData.append("productType", product.productType);
 
     // Append beverageType only if productType is "beverages"
@@ -85,21 +73,6 @@ const ManageProducts = () => {
     } catch (err) {
       setError("Failed to delete product. Please try again later.");
       console.error("Delete Product Error:", err.response?.data?.message || err.message);
-    }
-  };
-
-  // Restock Product
-  const handleRestock = async (productId, quantity) => {
-    try {
-      await axiosInstance.put(`/api/products/restock/${productId}`, { quantity });
-      setProducts((prevProducts) =>
-        prevProducts.map((product) =>
-          product._id === productId ? { ...product, stock: product.stock + quantity } : product
-        )
-      );
-    } catch (err) {
-      setError("Failed to restock product. Please try again later.");
-      console.error("Restock Product Error:", err.response?.data?.message || err.message);
     }
   };
 
@@ -157,7 +130,6 @@ const ManageProducts = () => {
           <div key={product._id} className="bg-white p-4 rounded-lg shadow-md">
             <h2 className="text-xl tracking-widest font-semibold mb-2">{product.name}</h2>
             <p className="text-lg">Price: ₱{product.price}</p>
-            <p className="text-lg">Stock: {product.stock}</p>
             <p className="text-lg">Type: {product.productType}</p>
             {product.productType === "beverages" && <p className="text-lg">Beverage Type: {product.beverageType}</p>}
             <img
@@ -181,12 +153,6 @@ const ManageProducts = () => {
               >
                 Delete
               </button>
-              <button
-                className="bg-zinc-800 text-white p-[.5em] rounded-lg cursor-pointer"
-                onClick={() => handleRestock(product._id, 10)}
-              >
-                Restock +10
-              </button>
             </div>
           </div>
         ))}
@@ -206,20 +172,6 @@ const ManageProducts = () => {
           </button>
         ))}
       </div>
-
-      {/* Low Stock Alert */}
-      {lowStock.length > 0 && (
-        <div className="bg-yellow-100 p-4 mt-8 rounded-lg">
-          <h2 className="text-lg font-semibold">Low Stock Products:</h2>
-          <ul>
-            {lowStock.map((product) => (
-              <li key={product._id}>
-                {product.name} - Stock: {product.stock}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {/* Product Modal */}
       {showModal && (
