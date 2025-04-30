@@ -15,6 +15,7 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
 
   useEffect(() => {
     if (editingProduct) {
+      // Initialize with existing product data
       setProduct({
         name: editingProduct.name || "",
         price: editingProduct.price?.toString() || "",
@@ -29,6 +30,7 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
         })) || []
       });
 
+      // Set image preview if exists
       if (editingProduct.image) {
         setPreviewImage(editingProduct.image);
       }
@@ -40,6 +42,7 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
     setProduct(prev => ({
       ...prev,
       [name]: value,
+      // Clear beverageType if switching to delights
       ...(name === "productType" && value === "delights" ? { beverageType: "" } : {}),
     }));
   };
@@ -47,15 +50,11 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setProduct(prev => ({
-        ...prev,
-        imageFile: file
-      }));
-
+      setProduct(prev => ({ ...prev, imageFile: file }));
+      
+      // Create image preview
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewImage(reader.result);
-      };
+      reader.onloadend = () => setPreviewImage(reader.result);
       reader.readAsDataURL(file);
     }
   };
@@ -94,28 +93,31 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
       return;
     }
 
-    // Validate price
-    if (isNaN(parseFloat(product.price))) {
+    // Validate price is a positive number
+    if (isNaN(parseFloat(product.price)) || parseFloat(product.price) <= 0) {
       alert("Please enter a valid price.");
       return;
     }
 
-    // Validate beverage type
+    // Validate beverage type if applicable
     if (product.productType === "beverages" && !product.beverageType) {
       alert("Please select a beverage type.");
       return;
     }
 
-    // Validate ingredients
-    if (product.ingredients.some(ing => !ing.name || isNaN(parseFloat(ing.quantity)))) {
+    // Validate all ingredients have names and valid quantities
+    if (product.ingredients.some(ing => !ing.name || isNaN(parseFloat(ing.quantity)) || parseFloat(ing.quantity) <= 0)) {
       alert("Please provide valid names and quantities for all ingredients.");
       return;
     }
 
     // Prepare data for submission
     const submissionData = {
-      ...product,
+      name: product.name,
       price: parseFloat(product.price),
+      description: product.description,
+      productType: product.productType,
+      beverageType: product.productType === "beverages" ? product.beverageType : undefined,
       ingredients: product.ingredients.map(ing => ({
         name: ing.name.trim(),
         quantity: parseFloat(ing.quantity),
@@ -136,7 +138,7 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
         <form onSubmit={handleSubmit}>
           {/* Product Name */}
           <div className="mb-4">
-            <label className="block text-gray-700 mb-2">Product Name</label>
+            <label className="block text-gray-700 mb-2">Product Name *</label>
             <input
               type="text"
               name="name"
@@ -149,7 +151,7 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
 
           {/* Price */}
           <div className="mb-4">
-            <label className="block text-gray-700 mb-2">Price</label>
+            <label className="block text-gray-700 mb-2">Price *</label>
             <input
               type="number"
               name="price"
@@ -164,7 +166,7 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
 
           {/* Description */}
           <div className="mb-4">
-            <label className="block text-gray-700 mb-2">Description</label>
+            <label className="block text-gray-700 mb-2">Description *</label>
             <textarea
               name="description"
               value={product.description}
@@ -177,7 +179,7 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
 
           {/* Product Type */}
           <div className="mb-4">
-            <label className="block text-gray-700 mb-2">Product Type</label>
+            <label className="block text-gray-700 mb-2">Product Type *</label>
             <select
               name="productType"
               value={product.productType}
@@ -193,7 +195,7 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
           {/* Beverage Type (conditional) */}
           {product.productType === "beverages" && (
             <div className="mb-4">
-              <label className="block text-gray-700 mb-2">Beverage Type</label>
+              <label className="block text-gray-700 mb-2">Beverage Type *</label>
               <select
                 name="beverageType"
                 value={product.beverageType}
@@ -235,12 +237,12 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
 
           {/* Ingredients Section */}
           <div className="mb-4">
-            <label className="block text-gray-700 mb-2">Ingredients</label>
+            <label className="block text-gray-700 mb-2">Recipe Ingredients</label>
             {product.ingredients.map((ingredient, index) => (
               <div key={index} className="flex items-center mb-2 gap-2">
                 <input
                   type="text"
-                  placeholder="Name"
+                  placeholder="Ingredient Name"
                   value={ingredient.name}
                   onChange={(e) => handleIngredientChange(index, "name", e.target.value)}
                   className="flex-1 p-2 border rounded-lg"
@@ -268,7 +270,7 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
                 <button
                   type="button"
                   onClick={() => removeIngredientField(index)}
-                  className="bg-red-500 text-white px-3 py-1 rounded-lg"
+                  className="bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600 transition"
                 >
                   ×
                 </button>
@@ -277,7 +279,7 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
             <button
               type="button"
               onClick={addIngredientField}
-              className="bg-blue-500 text-white px-3 py-1 rounded-lg mt-2"
+              className="bg-blue-500 text-white px-3 py-1 rounded-lg mt-2 hover:bg-blue-600 transition"
             >
               + Add Ingredient
             </button>
@@ -298,7 +300,17 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct, isSaving }) => 
               className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
               disabled={isSaving}
             >
-              {isSaving ? "Saving..." : "Save"}
+              {isSaving ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  {editingProduct ? "Updating..." : "Creating..."}
+                </span>
+              ) : (
+                <span>{editingProduct ? "Update" : "Create"}</span>
+              )}
             </button>
           </div>
         </form>
