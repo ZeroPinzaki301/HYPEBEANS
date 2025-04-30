@@ -6,32 +6,15 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
     name: "",
     price: "",
     description: "",
-    productType: "beverages", // Default value
+    productType: "beverages",
     beverageType: "",
     imageFile: null,
-    ingredients: [], // New field for ingredients
+    ingredients: [], // Store manually entered ingredients
   });
 
-  const [ingredients, setIngredients] = useState([]); // List of available ingredients
-  const [selectedIngredients, setSelectedIngredients] = useState([]); // Selected ingredient quantities
-
   useEffect(() => {
-    // Fetch available ingredients
-    const fetchIngredients = async () => {
-      try {
-        const { data } = await axiosInstance.get("/api/inventory/ingredients");
-        setIngredients(data);
-      } catch (err) {
-        console.error("Error fetching ingredients:", err);
-      }
-    };
-
-    fetchIngredients();
-
-    // Populate the form with existing product details if editing
     if (editingProduct) {
       setProduct({ ...editingProduct, imageFile: null });
-      setSelectedIngredients(editingProduct.ingredients || []);
     }
   }, [editingProduct]);
 
@@ -48,22 +31,29 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
     setProduct((prevProduct) => ({ ...prevProduct, imageFile: e.target.files[0] }));
   };
 
-  const handleIngredientChange = (ingredientId, quantity) => {
-    setSelectedIngredients((prev) => {
-      const updatedIngredients = [...prev];
-      const index = updatedIngredients.findIndex((i) => i.ingredient === ingredientId);
-      
-      if (index !== -1) {
-        updatedIngredients[index].quantity = quantity;
-      } else {
-        updatedIngredients.push({ ingredient: ingredientId, quantity });
-      }
-
-      return updatedIngredients;
+  const handleIngredientChange = (index, field, value) => {
+    setProduct((prevProduct) => {
+      const updatedIngredients = [...prevProduct.ingredients];
+      updatedIngredients[index][field] = value;
+      return { ...prevProduct, ingredients: updatedIngredients };
     });
   };
 
-  const handleSubmit = (e) => {
+  const addIngredientField = () => {
+    setProduct((prevProduct) => ({
+      ...prevProduct,
+      ingredients: [...prevProduct.ingredients, { name: "", quantity: 1, unit: "pcs" }],
+    }));
+  };
+
+  const removeIngredientField = (index) => {
+    setProduct((prevProduct) => {
+      const updatedIngredients = prevProduct.ingredients.filter((_, i) => i !== index);
+      return { ...prevProduct, ingredients: updatedIngredients };
+    });
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!product.name || !product.price || !product.description || !product.productType) {
@@ -76,8 +66,13 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
       return;
     }
 
-    // Pass product data and ingredient selections
-    saveProduct({ ...product, ingredients: selectedIngredients }, product.imageFile);
+    // Validate ingredient names
+    if (product.ingredients.some((ingredient) => !ingredient.name)) {
+      alert("Please provide names for all ingredients.");
+      return;
+    }
+
+    saveProduct(product, product.imageFile);
     closeModal();
   };
 
@@ -109,15 +104,22 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
 
           <input type="file" name="image" onChange={handleFileChange} className="w-full p-2 border mb-4 rounded-lg" />
 
-          {/* Ingredient Selection */}
+          {/* Ingredient Input Fields */}
           <div className="mb-4">
-            <h3 className="font-bold">Select Ingredients:</h3>
-            {ingredients.map((ingredient) => (
-              <div key={ingredient._id} className="flex items-center mb-2">
-                <label className="mr-2">{ingredient.name} ({ingredient.unit})</label>
-                <input type="number" min="0" placeholder="Qty" onChange={(e) => handleIngredientChange(ingredient._id, parseFloat(e.target.value))} className="w-20 border p-1 rounded-lg" />
+            <h3 className="font-bold mb-2">Ingredients:</h3>
+            {product.ingredients.map((ingredient, index) => (
+              <div key={index} className="flex items-center mb-2 gap-2">
+                <input type="text" placeholder="Ingredient Name" value={ingredient.name} onChange={(e) => handleIngredientChange(index, "name", e.target.value)} className="w-2/3 p-2 border rounded-lg" required />
+                <input type="number" min="1" placeholder="Qty" value={ingredient.quantity} onChange={(e) => handleIngredientChange(index, "quantity", e.target.value)} className="w-20 border p-1 rounded-lg" required />
+                <select value={ingredient.unit} onChange={(e) => handleIngredientChange(index, "unit", e.target.value)} className="w-20 border p-1 rounded-lg">
+                  <option value="pcs">pcs</option>
+                  <option value="g">g</option>
+                  <option value="ml">ml</option>
+                </select>
+                <button type="button" onClick={() => removeIngredientField(index)} className="bg-red-500 text-white px-3 py-1 rounded-lg">X</button>
               </div>
             ))}
+            <button type="button" onClick={addIngredientField} className="bg-blue-500 text-white px-3 py-1 rounded-lg mt-2">+ Add Ingredient</button>
           </div>
 
           <div className="flex justify-end gap-4 mt-4">
