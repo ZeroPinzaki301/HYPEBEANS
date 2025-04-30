@@ -1,11 +1,11 @@
 import express from 'express';
 import Product from '../models/Product.model.js';
-import { Recipe, Ingredient } from '../models/Inventory.model.js'; // Using centralized inventory models
+import { Ingredient } from '../models/Inventory.model.js';
 import { productUpload } from '../utils/multer.js';
 
 const router = express.Router();
 
-// Create Product Route with Recipe Handling
+// Create Product Route (now storing ingredients directly in the product)
 router.post("/create", productUpload.single("image"), async (req, res) => {
     const { name, price, description, productType, beverageType, ingredients } = req.body;
     const image = req.file ? `uploads/${req.file.filename}` : null;
@@ -21,36 +21,21 @@ router.post("/create", productUpload.single("image"), async (req, res) => {
     }
 
     try {
-        // Parse ingredients from string if sent via multipart/form-data
         const parsedIngredients = JSON.parse(ingredients);
 
-        // Process ingredients: Check existence or create new ones
-        const ingredientRecords = await Promise.all(
-            parsedIngredients.map(async (ingredient) => {
-                let existingIngredient = await Ingredient.findOne({ name: ingredient.name });
+        // Ensure ingredients exist in the inventory, create if needed
+        await Promise.all(parsedIngredients.map(async (ingredient) => {
+            let existingIngredient = await Ingredient.findOne({ name: ingredient.name });
+            if (!existingIngredient) {
+                await new Ingredient({
+                    name: ingredient.name,
+                    quantity: ingredient.quantity,
+                    unit: ingredient.unit || "pcs"
+                }).save();
+            }
+        }));
 
-                if (!existingIngredient) {
-                    existingIngredient = new Ingredient({
-                        name: ingredient.name,
-                        quantity: ingredient.quantity, // Initial stock
-                        unit: ingredient.unit || "pcs"
-                    });
-                    await existingIngredient.save();
-                }
-
-                return { ingredient: existingIngredient._id, quantityRequired: ingredient.quantity };
-            })
-        );
-
-        // Create recipe entry
-        const newRecipe = new Recipe({
-            product: null, // Will be linked after product creation
-            ingredients: ingredientRecords
-        });
-
-        await newRecipe.save();
-
-        // Create product and link recipe
+        // Save product with ingredient array directly
         const newProduct = new Product({
             name,
             price,
@@ -58,20 +43,16 @@ router.post("/create", productUpload.single("image"), async (req, res) => {
             productType,
             beverageType: productType === "beverages" ? beverageType : undefined,
             image,
-            recipe: newRecipe._id
+            ingredients: parsedIngredients
         });
 
         await newProduct.save();
-        newRecipe.product = newProduct._id;
-        await newRecipe.save();
-
-        res.status(201).json({ message: "Product created successfully with recipe", product: newProduct });
+        res.status(201).json({ message: "Product created successfully", product: newProduct });
     } catch (error) {
         console.error("Error creating product:", error);
         res.status(500).json({ message: "Server Error", error: error.message });
     }
 });
-
 
 // Update/Edit Product Route
 router.put("/update/:id", productUpload.single("image"), async (req, res) => {
