@@ -6,19 +6,37 @@ const router = express.Router();
 
 // Create Product Route
 router.post("/create", productUpload.single("image"), async (req, res) => {
-    const { name, price, description, productType, beverageType } = req.body;
+    const { name, price, description, productType, beverageType, ingredients } = req.body;
     const image = req.file ? `uploads/${req.file.filename}` : null;
-  
+
     // Validate required fields
-    if (!name || !price || !description || !productType) {
+    if (!name || !price || !description || !productType || !ingredients) {
       return res.status(400).json({ message: "Missing required fields." });
     }
     if (productType === "beverages" && !beverageType) {
       return res.status(400).json({ message: "Beverage type is required for beverages." });
     }
-  
+
     try {
-      const newProduct = new Product({ name, price, description, productType, beverageType, image });
+      // Validate and map ingredients if provided
+      let formattedIngredients = [];
+      if (ingredients && Array.isArray(ingredients)) {
+        formattedIngredients = ingredients.map(ingredient => ({
+          ingredient: ingredient.ingredientId, // Should be an ObjectId referencing Ingredient
+          quantityRequired: ingredient.quantityRequired
+        }));
+      }
+
+      const newProduct = new Product({ 
+        name, 
+        price, 
+        description, 
+        productType, 
+        beverageType, 
+        image, 
+        ingredients: formattedIngredients 
+      });
+
       await newProduct.save();
       res.status(201).json({ message: "Product created successfully", product: newProduct });
     } catch (error) {
