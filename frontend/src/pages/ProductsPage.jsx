@@ -4,8 +4,7 @@ import { Link } from "react-router-dom";
 import { IoCartSharp } from "react-icons/io5";
 import { io } from "socket.io-client";
 
-
-const socket = io("https://hypebeans.onrender.com"); 
+const socket = io("https://hypebeans.onrender.com");
 
 const ProductsPage = () => {
   const [products, setProducts] = useState([]);
@@ -14,30 +13,24 @@ const ProductsPage = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    const socket = io("https://hypebeans.onrender.com"); 
-    
     const fetchProducts = async () => {
       try {
         const { data } = await axiosInstance.get("/api/products");
 
-        // Filter products with stock >= 1
-        const filteredProducts = data.filter((product) => product.stock > 1);
-        setProducts(filteredProducts);
+        // ✅ Remove stock filtering
+        setProducts(data);
       } catch (err) {
         setError("Failed to fetch products. Please try again later.");
       }
     };
 
-    // Initial fetch to populate product data
     fetchProducts();
 
     // Listen for real-time updates from the backend
     socket.on("product-updates", (updatedProducts) => {
-      const filteredProducts = updatedProducts.filter((product) => product.stock >= 1);
-      setProducts(filteredProducts); // Update products dynamically
+      setProducts(updatedProducts); // ✅ Real-time updates
     });
 
-    // Cleanup listener on unmount
     return () => {
       socket.off("product-updates");
     };
@@ -188,22 +181,6 @@ const ProductsPage = () => {
               ))}
           </div>
         )}
-
-        <div className="flex fixed bottom-4 right-4 gap-4 md:gap-6">
-          {isLoggedIn && (
-            <Link to="/cart" className="bg-zinc-800 text-white p-3 rounded-md">
-              <IoCartSharp className="text-xl md:text-2xl" />
-            </Link>
-          )}
-          {isLoggedIn && (
-            <Link
-              to="/orders/ongoing"
-              className="bg-zinc-800 text-white p-2 md:p-3 rounded-md text-sm md:text-base"
-            >
-              Ongoing
-            </Link>
-          )}
-        </div>
       </div>
     </div>
   );
