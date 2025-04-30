@@ -12,11 +12,31 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
     ingredients: [],
   });
 
-  const [ingredientName, setIngredientName] = useState("");
+  // State for the ingredient selection
+  const [selectedIngredient, setSelectedIngredient] = useState("");
   const [ingredientQuantity, setIngredientQuantity] = useState("");
-  const [ingredientUnit, setIngredientUnit] = useState("g");
+  const [availableIngredients, setAvailableIngredients] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch all available ingredients when the modal opens
+  useEffect(() => {
+    const fetchIngredients = async () => {
+      setIsLoading(true);
+      try {
+        const { data } = await axios.get("/api/ingredients");
+        setAvailableIngredients(data);
+      } catch (err) {
+        console.error("Error fetching ingredients:", err);
+        setError("Failed to load ingredients. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchIngredients();
+  }, []);
 
   useEffect(() => {
     if (editingProduct) {
@@ -25,7 +45,8 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
         ingredient: ing.ingredient._id || ing.ingredient,
         quantityRequired: ing.quantityRequired,
         // Store name for display purposes only (not sent to backend)
-        name: ing.ingredient?.name || 'Unknown Ingredient'
+        name: ing.ingredient?.name || 'Unknown Ingredient',
+        unit: ing.ingredient?.unit || 'g'
       }));
 
       setProduct({
@@ -49,53 +70,50 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
     setProduct((prev) => ({ ...prev, imageFile: e.target.files[0] }));
   };
 
-  const handleAddIngredient = async () => {
-    if (!ingredientName.trim() || !ingredientQuantity) {
-      setError("Please fill all ingredient fields");
+  const handleAddIngredient = () => {
+    if (!selectedIngredient || !ingredientQuantity) {
+      setError("Please select an ingredient and specify quantity");
       return;
     }
 
-    try {
-      setError(null);
-      const { data } = await axios.post("/api/ingredients/check", { name: ingredientName });
+    // Find the selected ingredient from available ingredients
+    const ingredientToAdd = availableIngredients.find(
+      ing => ing._id === selectedIngredient
+    );
 
-      let ingredientId;
-      let ingredientDisplayName = ingredientName;
-
-      if (data.exists) {
-        // Use existing ingredient
-        ingredientId = data.ingredient._id;
-      } else {
-        // Create new ingredient
-        const newIngredientResponse = await axios.post("/api/ingredients/create", {
-          name: ingredientName,
-          quantity: 0, // Initial quantity set to 0
-          unit: ingredientUnit,
-        });
-        ingredientId = newIngredientResponse.data._id;
-      }
-
-      // Add ingredient to product with proper format for backend
-      setProduct((prev) => ({
-        ...prev,
-        ingredients: [
-          ...prev.ingredients, 
-          {
-            ingredient: ingredientId,
-            quantityRequired: Number(ingredientQuantity),
-            name: ingredientDisplayName // for display only
-          }
-        ],
-      }));
-
-      // Clear input fields
-      setIngredientName("");
-      setIngredientQuantity("");
-      setIngredientUnit("g");
-    } catch (error) {
-      console.error("Error adding ingredient", error);
-      setError("Failed to add ingredient. Please try again.");
+    if (!ingredientToAdd) {
+      setError("Selected ingredient not found");
+      return;
     }
+
+    // Check if ingredient is already added
+    const isAlreadyAdded = product.ingredients.some(
+      ing => ing.ingredient === selectedIngredient
+    );
+
+    if (isAlreadyAdded) {
+      setError("This ingredient is already added to the product");
+      return;
+    }
+
+    // Add ingredient to product
+    setProduct((prev) => ({
+      ...prev,
+      ingredients: [
+        ...prev.ingredients,
+        {
+          ingredient: selectedIngredient,
+          quantityRequired: Number(ingredientQuantity),
+          name: ingredientToAdd.name,
+          unit: ingredientToAdd.unit
+        }
+      ],
+    }));
+
+    // Clear selection
+    setSelectedIngredient("");
+    setIngredientQuantity("");
+    setError(null);
   };
 
   const removeIngredient = (index) => {
@@ -248,55 +266,53 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
             <div className="border-t pt-4">
               <h3 className="text-lg font-semibold mb-3">Ingredients</h3>
               
-              <div className="grid grid-cols-12 gap-2 mb-3">
-                <div className="col-span-5">
-                  <input 
-                    type="text" 
-                    placeholder="Ingredient Name" 
-                    value={ingredientName} 
-                    onChange={(e) => setIngredientName(e.target.value)} 
-                    className="w-full p-2 border rounded-lg" 
-                  />
+              {isLoading ? (
+                <p className="text-gray-500">Loading ingredients...</p>
+              ) : (
+                <div className="grid grid-cols-12 gap-2 mb-3">
+                  <div className="col-span-5">
+                    <select 
+                      value={selectedIngredient} 
+                      onChange={(e) => setSelectedIngredient(e.target.value)} 
+                      className="w-full p-2 border rounded-lg"
+                    >
+                      <option value="">Select Ingredient</option>
+                      {availableIngredients.map(ingredient => (
+                        <option key={ingredient._id} value={ingredient._id}>
+                          {ingredient.name} ({ingredient.unit})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-span-5">
+                    <input 
+                      type="number" 
+                      placeholder="Quantity Required" 
+                      value={ingredientQuantity} 
+                      onChange={(e) => setIngredientQuantity(e.target.value)} 
+                      className="w-full p-2 border rounded-lg" 
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <button 
+                      type="button" 
+                      onClick={handleAddIngredient} 
+                      className="w-full bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700"
+                    >
+                      Add
+                    </button>
+                  </div>
                 </div>
-                <div className="col-span-3">
-                  <input 
-                    type="number" 
-                    placeholder="Qty" 
-                    value={ingredientQuantity} 
-                    onChange={(e) => setIngredientQuantity(e.target.value)} 
-                    className="w-full p-2 border rounded-lg" 
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <select 
-                    value={ingredientUnit} 
-                    onChange={(e) => setIngredientUnit(e.target.value)} 
-                    className="w-full p-2 border rounded-lg"
-                  >
-                    <option value="g">g</option>
-                    <option value="ml">ml</option>
-                    <option value="pcs">pcs</option>
-                  </select>
-                </div>
-                <div className="col-span-2">
-                  <button 
-                    type="button" 
-                    onClick={handleAddIngredient} 
-                    className="w-full bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700"
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>
+              )}
 
               {product.ingredients.length > 0 ? (
-                <ul className="space-y-2">
+                <ul className="space-y-2 mt-4">
                   {product.ingredients.map((ing, index) => (
                     <li key={index} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
                       <span>
-                        {ing.name} - {ing.quantityRequired} {ingredientUnit}
+                        {ing.name} - {ing.quantityRequired} {ing.unit}
                       </span>
                       <button 
                         type="button" 
@@ -309,7 +325,7 @@ const ProductModal = ({ closeModal, saveProduct, editingProduct }) => {
                   ))}
                 </ul>
               ) : (
-                <p className="text-gray-500 text-sm">No ingredients added yet</p>
+                <p className="text-gray-500 text-sm mt-2">No ingredients added yet</p>
               )}
             </div>
           </div>
