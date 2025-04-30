@@ -1,5 +1,3 @@
-import mongoose from 'mongoose';
-
 const productSchema = new mongoose.Schema(
     {
         name: { type: String, required: true },
@@ -9,25 +7,28 @@ const productSchema = new mongoose.Schema(
         productType: { 
             type: String, 
             required: true, 
-            enum: ["beverages", "delights"], // Restricting to specified types
+            enum: ["beverages", "delights"],
             message: "Product type must be either 'beverages' or 'delights'"
         },
-        variants: { // New field for variants
+        variants: { 
             hot: { price: { type: Number }, stock: { type: Number, default: 0 } },
             iced: { price: { type: Number }, stock: { type: Number, default: 0 } },
         },
         beverageType: {
             type: String,
             enum: [
-              "espresso based",
-              "coffee based frappe",
-              "non-coffee based",
-              "non-coffee based frappe",
-              "refreshments",
-              "cold brew specials",
+                "espresso based",
+                "coffee based frappe",
+                "non-coffee based",
+                "non-coffee based frappe",
+                "refreshments",
+                "cold brew specials",
             ],
-          },
-        
+        },
+        ingredients: [{ 
+            ingredient: { type: mongoose.Schema.Types.ObjectId, ref: "Ingredient" }, 
+            quantityRequired: { type: Number, required: true } // Amount needed per product
+        }],
     },
     { timestamps: true }
 );
