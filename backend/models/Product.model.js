@@ -26,8 +26,11 @@ const productSchema = new mongoose.Schema(
               "refreshments",
               "cold brew specials",
             ],
-          },
-        
+        },
+        recipe: { 
+            type: mongoose.Schema.Types.ObjectId, 
+            ref: "Recipe"
+        }        
     },
     { timestamps: true }
 );
