@@ -27,7 +27,7 @@ const AdminInventory = () => {
     const quantityStr = prompt("Enter quantity to add:");
     const quantityToAdd = parseFloat(quantityStr);
 
-    if (isNaN(quantityToAdd) {
+    if (isNaN(quantityToAdd)) {
       alert("Please enter a valid number.");
       return;
     }
