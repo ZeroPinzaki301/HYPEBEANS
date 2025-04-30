@@ -1,5 +1,5 @@
 import express from "express";
-import { Ingredient, Recipe } from "../models/Inventory.model.js";
+import { Ingredient } from "../models/Inventory.model.js"; // Removed Recipe import
 
 const router = express.Router();
 
@@ -50,56 +50,6 @@ router.delete("/ingredients/:id", async (req, res) => {
     res.json({ message: "Ingredient deleted" });
   } catch (error) {
     res.status(500).json({ error: "Failed to delete ingredient" });
-  }
-});
-
-// 📝 Recipe Routes
-router.get("/recipes", async (req, res) => {
-  try {
-    const recipes = await Recipe.find().populate("ingredients.ingredient");
-    res.json(recipes);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch recipes" });
-  }
-});
-
-router.get("/recipes/:id", async (req, res) => {
-  try {
-    const recipe = await Recipe.findById(req.params.id).populate("ingredients.ingredient");
-    if (!recipe) return res.status(404).json({ error: "Recipe not found" });
-    res.json(recipe);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch recipe" });
-  }
-});
-
-router.post("/recipes", async (req, res) => {
-  try {
-    const newRecipe = new Recipe(req.body);
-    await newRecipe.save();
-    res.status(201).json(newRecipe);
-  } catch (error) {
-    res.status(400).json({ error: "Failed to add recipe" });
-  }
-});
-
-router.put("/recipes/:id", async (req, res) => {
-  try {
-    const updatedRecipe = await Recipe.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate("ingredients.ingredient");
-    if (!updatedRecipe) return res.status(404).json({ error: "Recipe not found" });
-    res.json(updatedRecipe);
-  } catch (error) {
-    res.status(400).json({ error: "Failed to update recipe" });
-  }
-});
-
-router.delete("/recipes/:id", async (req, res) => {
-  try {
-    const deletedRecipe = await Recipe.findByIdAndDelete(req.params.id);
-    if (!deletedRecipe) return res.status(404).json({ error: "Recipe not found" });
-    res.json({ message: "Recipe deleted" });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to delete recipe" });
   }
 });
 
