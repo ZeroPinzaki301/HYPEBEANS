@@ -2,6 +2,7 @@ import express from "express";
 import Order from "../models/Order.model.js";
 import Product from "../models/Product.model.js";
 import Cart from "../models/Cart.model.js";
+import Ingredient from "../models/Ingredient.model.js
 import { io } from "../index.js";
 
 const router = express.Router();
@@ -219,18 +220,45 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Update Order Status (Admin)
+// Update Order Status (Admin) - Modified to handle ingredient deduction
 router.put("/update-status/:orderId", async (req, res) => {
   const { orderId } = req.params;
   const { status } = req.body;
 
   try {
-    const order = await Order.findById(orderId).populate("items.product");
+    const order = await Order.findById(orderId).populate({
+      path: "items.product",
+      populate: {
+        path: "ingredients.ingredient",
+        model: "Ingredient"
+      }
+    });
+    
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     const wasPending = order.status === "Pending";
     const willAffectPending = wasPending || status === "Pending";
     
+    // Handle ingredient deduction when status changes to "Out for Delivery"
+    if (status === "Out for Delivery" && order.status !== "Out for Delivery") {
+      // Deduct ingredients for each product in the order
+      for (const item of order.items) {
+        const product = item.product;
+        if (product.ingredients && product.ingredients.length > 0) {
+          for (const productIngredient of product.ingredients) {
+            // Calculate total quantity needed (quantity per product * order quantity)
+            const totalDeduction = productIngredient.quantityRequired * item.quantity;
+            
+            // Update the ingredient inventory
+            await Ingredient.findByIdAndUpdate(
+              productIngredient.ingredient._id,
+              { $inc: { quantity: -totalDeduction } }
+            );
+          }
+        }
+      }
+    }
+
     order.status = status;
     await order.save();
 
