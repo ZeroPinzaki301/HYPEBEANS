@@ -29,7 +29,7 @@ const ManageProducts = () => {
 
     const fetchIngredients = async () => {
       try {
-        const { data } = await axiosInstance.get("/api/inventory");
+        const { data } = await axiosInstance.get("/api/ingredients");
         setIngredients(data);
       } catch (err) {
         console.error("Fetch Ingredients Error:", err.message);
