@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axiosInstance from "../utils/axiosInstance";
 import { IoArrowBackCircleSharp } from "react-icons/io5";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 const CartPage = () => {
   const [cart, setCart] = useState(null);
@@ -12,7 +12,7 @@ const CartPage = () => {
   const userId = localStorage.getItem("userId");
   const navigate = useNavigate();
 
-  // Fetch stock for a single product
+  // Fetch product stock
   const fetchProductStock = async (productId) => {
     try {
       setLoadingStocks(prev => ({ ...prev, [productId]: true }));
@@ -28,7 +28,7 @@ const CartPage = () => {
     }
   };
 
-  // Fetch cart and product data
+  // Fetch cart data
   useEffect(() => {
     if (!userId) {
       setError("User not found. Please log in.");
@@ -55,7 +55,7 @@ const CartPage = () => {
         setVariantData(variantsMap);
         setCart(data);
 
-        // Fetch stock for each product in cart
+        // Fetch stock for each product
         data.items.forEach(item => {
           fetchProductStock(item.product._id);
         });
@@ -67,10 +67,10 @@ const CartPage = () => {
     fetchData();
   }, [userId]);
 
-  // Update quantity of a product
+  // Update quantity
   const handleUpdateQuantity = async (productId, newQuantity, variant) => {
     try {
-      // Update in localStorage
+      // Update localStorage
       const cartVariants = JSON.parse(localStorage.getItem("cartVariants") || "[]");
       const itemIndex = cartVariants.findIndex(
         (item) => item.productId === productId && item.variant === variant
@@ -95,7 +95,7 @@ const CartPage = () => {
       });
       setVariantData(variantsMap);
 
-      // Update in backend
+      // Update backend
       await axiosInstance.put(`/api/cart/update/${userId}/${productId}`, {
         quantity: newQuantity,
       });
@@ -112,7 +112,7 @@ const CartPage = () => {
     }
   };
 
-  // Remove an item from the cart
+  // Remove item
   const handleRemoveItem = async (productId, variant) => {
     try {
       // Remove from localStorage
@@ -190,7 +190,7 @@ const CartPage = () => {
                 >
                   <div className="flex items-center mb-4">
                     <img
-                      src={` https://hypebeans.onrender.com/${item.product.image}`}
+                      src={`https://hypebeans.onrender.com/${item.product.image}`}
                       alt={item.product.name}
                       className="w-16 h-16 object-cover rounded-lg"
                     />
@@ -267,16 +267,32 @@ const CartPage = () => {
               <h3 className="text-lg font-bold">Total</h3>
               <p className="text-xl font-bold">₱{calculateTotalPrice().toFixed(2)}</p>
             </div>
-            <button
-              className="w-full bg-zinc-800 text-white py-3 rounded-lg hover:bg-zinc-700 transition"
-              onClick={() => navigate(`/checkout/${userId}`)}
-            >
-              Proceed to Checkout
-            </button>
+            <div className="flex flex-col gap-3">
+              <button
+                className="w-full bg-zinc-800 text-white py-3 rounded-lg hover:bg-zinc-700 transition"
+                onClick={() => navigate(`/checkout/${userId}`)}
+              >
+                Proceed to Checkout
+              </button>
+              <Link
+                to={`/cart-history/${userId}`}
+                className="w-full bg-zinc-200 text-zinc-800 py-3 rounded-lg hover:bg-zinc-300 transition text-center"
+              >
+                View Cart History
+              </Link>
+            </div>
           </div>
         </>
       ) : (
-        <p className="text-zinc-500 text-center mt-8">Your cart is empty</p>
+        <div className="text-center">
+          <p className="text-zinc-500 text-center mt-8 mb-4">Your cart is empty</p>
+          <Link
+            to="/menu"
+            className="inline-block bg-zinc-800 text-white px-6 py-2 rounded-lg hover:bg-zinc-700 transition"
+          >
+            Browse Menu
+          </Link>
+        </div>
       )}
     </div>
   );
