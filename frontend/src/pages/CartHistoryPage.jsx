@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axiosInstance from "../utils/axiosInstance";
 import { FiShoppingCart, FiClock } from "react-icons/fi";
-import { toast } from "react-toastify";
 
 const CartHistoryPage = () => {
   const [carts, setCarts] = useState([]);
@@ -16,7 +15,7 @@ const CartHistoryPage = () => {
         const { data } = await axiosInstance.get(`/api/cart/history/${userId}`);
         setCarts(data);
       } catch (error) {
-        toast.error("Failed to load cart history");
+        console.error("Failed to load cart history");
       } finally {
         setLoading(false);
       }
@@ -28,10 +27,10 @@ const CartHistoryPage = () => {
   const handleReorder = async (cartId) => {
     try {
       const { data } = await axiosInstance.post(`/api/cart/reorder/${userId}/${cartId}`);
-      toast.success(data.message);
+      console.log(data.message);
       navigate("/cart"); // Redirect to cart page
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to reorder items");
+      console.error(error.response?.data?.message || "Failed to reorder items");
     }
   };
 
