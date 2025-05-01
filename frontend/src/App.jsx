@@ -24,6 +24,7 @@ import ContactsPage from "./pages/ContactsPage";
 import AdminMessages from "./admin/ManageMessages";
 import PaymentProof from "./admin/PaymentRecords";
 import AdminInventory from "./admin/InventoryManagement";
+import CartHistoryPage from "./pages/CartHistoryPage";
 
 const App = () => {
   const location = useLocation();
@@ -78,6 +79,7 @@ const App = () => {
         <Route path="/orders/history" element={<OrderHistory />} />
         <Route path="/cart" element={<CartPage />} />
         <Route path="/orders/ongoing" element={<OngoingOrdersPage />} />
+        <Route path="/cart-history/:userId" element={<CartHistoryPage />} />
 
         {/* Admin Routes */}
         <Route
