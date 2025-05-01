@@ -3,6 +3,7 @@ import axiosInstance from "../utils/axiosInstance";
 import ProductModal from "../components/ProductModal";
 import { Link } from "react-router-dom";
 import { IoIosAdd } from "react-icons/io";
+import { FaEdit, FaTrash, FaPlus, FaMinus } from "react-icons/fa";
 
 const ManageProducts = () => {
   const [products, setProducts] = useState([]);
@@ -15,6 +16,7 @@ const ManageProducts = () => {
   const [selectedIngredient, setSelectedIngredient] = useState("");
   const [quantityRequired, setQuantityRequired] = useState(1);
   const [currentProductId, setCurrentProductId] = useState(null);
+  const [showIngredients, setShowIngredients] = useState({});
   const itemsPerPage = 10;
 
   // Fetch Products and Ingredients
@@ -42,6 +44,14 @@ const ManageProducts = () => {
     fetchIngredients();
   }, []);
 
+  // Toggle ingredients visibility for a product
+  const toggleIngredients = (productId) => {
+    setShowIngredients(prev => ({
+      ...prev,
+      [productId]: !prev[productId]
+    }));
+  };
+
   // Add/Edit Product with Multer for image upload
   const handleSaveProduct = async (product, imageFile) => {
     const formData = new FormData();
@@ -50,7 +60,6 @@ const ManageProducts = () => {
     formData.append("description", product.description);
     formData.append("productType", product.productType);
 
-    // Append beverageType only if productType is "beverages"
     if (product.productType === "beverages") {
       formData.append("beverageType", product.beverageType);
     }
@@ -90,7 +99,7 @@ const ManageProducts = () => {
     }
   };
 
-  // Function to handle adding an ingredient
+  // Add ingredient to product
   const handleAddIngredient = async () => {
     if (!selectedIngredient || !quantityRequired || !currentProductId) {
       setError("Please select an ingredient and enter a quantity");
@@ -111,6 +120,21 @@ const ManageProducts = () => {
     } catch (err) {
       setError(err.response?.data?.message || "Failed to add ingredient. Please try again.");
       console.error("Add Ingredient Error:", err.message);
+    }
+  };
+
+  // Remove ingredient from product
+  const handleRemoveIngredient = async (productId, ingredientId) => {
+    try {
+      await axiosInstance.put(`/api/products/remove-ingredient/${productId}`, {
+        ingredientId
+      });
+
+      const { data } = await axiosInstance.get("/api/products");
+      setProducts(data);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to remove ingredient. Please try again.");
+      console.error("Remove Ingredient Error:", err.message);
     }
   };
 
@@ -176,14 +200,33 @@ const ManageProducts = () => {
               className="w-full h-40 object-cover rounded-lg mt-4"
             />
             
-            {/* Ingredients Section */}
+            {/* Toggle Ingredients Button */}
             {product.ingredients?.length > 0 && (
-              <div className="mt-4">
-                <h3 className="font-semibold">Ingredients:</h3>
-                <ul className="list-disc pl-5">
+              <button
+                onClick={() => toggleIngredients(product._id)}
+                className="mt-4 text-sm text-blue-600 hover:underline"
+              >
+                {showIngredients[product._id] ? "Hide Ingredients" : `Show Ingredients (${product.ingredients.length})`}
+              </button>
+            )}
+
+            {/* Ingredients Section (Collapsible) */}
+            {showIngredients[product._id] && product.ingredients?.length > 0 && (
+              <div className="mt-4 border-t pt-2">
+                <h3 className="font-semibold mb-2">Ingredients:</h3>
+                <ul className="space-y-2">
                   {product.ingredients.map((ing, index) => (
-                    <li key={index}>
-                      {ing.ingredient.name} - {ing.quantityRequired} {ing.ingredient.unit}
+                    <li key={index} className="flex justify-between items-center">
+                      <span>
+                        {ing.ingredient.name} - {ing.quantityRequired} {ing.ingredient.unit}
+                      </span>
+                      <button
+                        onClick={() => handleRemoveIngredient(product._id, ing.ingredient._id)}
+                        className="text-red-500 hover:text-red-700"
+                        title="Remove ingredient"
+                      >
+                        <FaMinus />
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -192,19 +235,21 @@ const ManageProducts = () => {
 
             <div className="flex flex-wrap gap-4 mt-5">
               <button
-                className="bg-zinc-800 text-white p-[.5em] rounded-lg cursor-pointer"
+                className="flex items-center bg-zinc-800 text-white p-2 rounded-lg cursor-pointer"
                 onClick={() => {
                   setEditingProduct(product);
                   setShowModal(true);
                 }}
+                title="Edit product"
               >
-                Edit
+                <FaEdit className="mr-1" /> Edit
               </button>
               <button
-                className="bg-zinc-800 text-white p-[.5em] rounded-lg cursor-pointer"
+                className="flex items-center bg-zinc-800 text-white p-2 rounded-lg cursor-pointer"
                 onClick={() => handleDeleteProduct(product._id)}
+                title="Delete product"
               >
-                Delete
+                <FaTrash className="mr-1" /> Delete
               </button>
               
               {/* Add Ingredient Section */}
@@ -236,10 +281,11 @@ const ManageProducts = () => {
                 
                 <button
                   onClick={handleAddIngredient}
-                  className="bg-green-600 text-white p-[.5em] rounded-lg cursor-pointer"
+                  className="flex items-center justify-center bg-green-600 text-white p-2 rounded-lg cursor-pointer"
                   disabled={!selectedIngredient || !quantityRequired}
+                  title="Add ingredient"
                 >
-                  Add Ingredient
+                  <FaPlus className="mr-1" /> Add Ingredient
                 </button>
               </div>
             </div>
