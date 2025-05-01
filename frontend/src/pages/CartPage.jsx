@@ -7,8 +7,26 @@ const CartPage = () => {
   const [cart, setCart] = useState(null);
   const [error, setError] = useState("");
   const [variantData, setVariantData] = useState({});
+  const [productStocks, setProductStocks] = useState({});
+  const [loadingStocks, setLoadingStocks] = useState({});
   const userId = localStorage.getItem("userId");
   const navigate = useNavigate();
+
+  // Fetch stock for a single product
+  const fetchProductStock = async (productId) => {
+    try {
+      setLoadingStocks(prev => ({ ...prev, [productId]: true }));
+      const { data } = await axiosInstance.get(`/api/products/${productId}`);
+      setProductStocks(prev => ({
+        ...prev,
+        [productId]: data.stock
+      }));
+    } catch (err) {
+      console.error(`Failed to fetch stock for product ${productId}:`, err);
+    } finally {
+      setLoadingStocks(prev => ({ ...prev, [productId]: false }));
+    }
+  };
 
   // Fetch cart and product data
   useEffect(() => {
@@ -36,6 +54,11 @@ const CartPage = () => {
 
         setVariantData(variantsMap);
         setCart(data);
+
+        // Fetch stock for each product in cart
+        data.items.forEach(item => {
+          fetchProductStock(item.product._id);
+        });
       } catch (err) {
         setError(err.response?.data?.message || "Failed to fetch cart items.");
       }
@@ -167,7 +190,7 @@ const CartPage = () => {
                 >
                   <div className="flex items-center mb-4">
                     <img
-                      src={`https://hypebeans.onrender.com/${item.product.image}`}
+                      src={` https://hypebeans.onrender.com/${item.product.image}`}
                       alt={item.product.name}
                       className="w-16 h-16 object-cover rounded-lg"
                     />
@@ -177,6 +200,62 @@ const CartPage = () => {
                       </h3>
                       <p className="text-zinc-600">₱{variantInfo.price} each</p>
                     </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <button
+                        className="bg-zinc-200 px-3 py-1 rounded-l hover:bg-zinc-300"
+                        onClick={() =>
+                          handleUpdateQuantity(
+                            item.product._id,
+                            Math.max(1, (variantInfo.quantity || 1) - 1),
+                            variantInfo.variant
+                          )
+                        }
+                      >
+                        -
+                      </button>
+                      <span className="px-4">{variantInfo.quantity || 1}</span>
+                      <button
+                        className={`px-3 py-1 rounded-r ${
+                          productStocks[item.product._id] !== undefined && 
+                          (variantInfo.quantity || 1) >= productStocks[item.product._id]
+                            ? "bg-zinc-300 cursor-not-allowed"
+                            : "bg-zinc-200 hover:bg-zinc-300"
+                        }`}
+                        onClick={() => {
+                          if (productStocks[item.product._id] === undefined || 
+                              (variantInfo.quantity || 1) < productStocks[item.product._id]) {
+                            handleUpdateQuantity(
+                              item.product._id,
+                              (variantInfo.quantity || 1) + 1,
+                              variantInfo.variant
+                            );
+                          }
+                        }}
+                        disabled={
+                          loadingStocks[item.product._id] || 
+                          (productStocks[item.product._id] !== undefined && 
+                           (variantInfo.quantity || 1) >= productStocks[item.product._id])
+                        }
+                      >
+                        {loadingStocks[item.product._id] ? "..." : "+"}
+                      </button>
+                    </div>
+                    <button
+                      className="bg-zinc-800 text-white px-3 py-1 rounded text-sm"
+                      onClick={() => handleRemoveItem(item.product._id, variantInfo.variant)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  {productStocks[item.product._id] !== undefined && (
+                    <div className="text-xs text-zinc-500 mt-1">
+                      Available: {productStocks[item.product._id]}
+                    </div>
+                  )}
+                  <div className="mt-2 text-right font-medium">
+                    Subtotal: ₱{(variantInfo.price * (variantInfo.quantity || 1)).toFixed(2)}
                   </div>
                 </div>
               ));
