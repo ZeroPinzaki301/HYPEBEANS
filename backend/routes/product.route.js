@@ -194,4 +194,26 @@ router.put("/add-ingredient/:id", async (req, res) => {
   }
 });
 
+// Remove an ingredient from a product 
+router.put("/remove-ingredient/:id", async (req, res) => {
+  try {
+    const { ingredientId } = req.body;
+    const product = await Product.findById(req.params.id);
+    
+    if (!product) {
+      return res.status(404).json({ message: "Product not found." });
+    }
+    
+    product.ingredients = product.ingredients.filter(
+      ing => ing.ingredient.toString() !== ingredientId
+    );
+    
+    await product.save();
+    res.status(200).json({ message: "Ingredient removed successfully", product });
+  } catch (error) {
+    console.error("Error removing ingredient:", error);
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+});
+
 export default router;
