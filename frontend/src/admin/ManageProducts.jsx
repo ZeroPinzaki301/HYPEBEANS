@@ -1,4 +1,3 @@
-// Import dependencies
 import React, { useState, useEffect } from "react";
 import axiosInstance from "../utils/axiosInstance";
 import ProductModal from "../components/ProductModal";
@@ -15,7 +14,7 @@ const ManageProducts = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Fetch Products and Ingredients
+  // Fetch Products
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -27,20 +26,24 @@ const ManageProducts = () => {
       }
     };
 
+    fetchProducts();
+  }, []);
+
+  // Fetch Ingredients
+  useEffect(() => {
     const fetchIngredients = async () => {
       try {
         const { data } = await axiosInstance.get("/api/ingredients");
-        setIngredients(data);
+        setIngredients(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error("Fetch Ingredients Error:", err.message);
       }
     };
 
-    fetchProducts();
     fetchIngredients();
   }, []);
 
-  // Function to handle adding an ingredient
+  // Handle Adding Ingredient
   const handleAddIngredient = async (productId, ingredientId, quantityRequired) => {
     try {
       await axiosInstance.put(`/api/products/add-ingredient/${productId}`, {
