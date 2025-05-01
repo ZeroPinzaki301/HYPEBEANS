@@ -8,4 +8,4 @@ const inventoryLogSchema = new mongoose.Schema({
   action: { type: String, enum: ["order_fulfillment", "manual_adjustment"] },
 }, { timestamps: true });
 
-module.exports = mongoose.model("InventoryLog", inventoryLogSchema);
+export default mongoose.model("InventoryLog", inventoryLogSchema);
