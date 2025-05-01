@@ -4,7 +4,8 @@ import { IoArrowBackCircleSharp } from "react-icons/io5";
 import { useNavigate, Link } from "react-router-dom";
 
 const CartPage = () => {
-  const [cart, setCart] = useState(null);
+  const [cart, setCart] = useState({ items: [] }); // Initialize with empty items
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [variantData, setVariantData] = useState({});
   const [productStocks, setProductStocks] = useState({});
@@ -32,12 +33,17 @@ const CartPage = () => {
   useEffect(() => {
     if (!userId) {
       setError("User not found. Please log in.");
+      setLoading(false);
       return;
     }
 
     const fetchData = async () => {
       try {
         const { data } = await axiosInstance.get(`/api/cart/${userId}`);
+        
+        // Ensure data has items array
+        const validCart = data?.items ? data : { items: [] };
+
         const cartVariants = JSON.parse(localStorage.getItem("cartVariants") || "[]");
         const variantsMap = {};
 
@@ -53,14 +59,20 @@ const CartPage = () => {
         });
 
         setVariantData(variantsMap);
-        setCart(data);
+        setCart(validCart);
 
         // Fetch stock for each product
-        data.items.forEach(item => {
-          fetchProductStock(item.product._id);
+        validCart.items.forEach(item => {
+          if (item.product?._id) {
+            fetchProductStock(item.product._id);
+          }
         });
       } catch (err) {
-        setError(err.response?.data?.message || "Failed to fetch cart items.");
+        console.error("Cart fetch error:", err);
+        setError(err.response?.data?.message || "Failed to load cart");
+        setCart({ items: [] }); // Reset to empty cart
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -151,17 +163,41 @@ const CartPage = () => {
 
   // Calculate total price
   const calculateTotalPrice = () => {
-    if (!cart) return 0;
-
+    if (!cart?.items) return 0;
     return cart.items.reduce((total, item) => {
-      const variants = variantData[item.product._id] || [];
+      const variants = variantData[item.product?._id] || [];
       const variantTotal = variants.reduce((sum, variant) => {
-        return sum + variant.price * (variant.quantity || 1);
+        return sum + (variant.price || 0) * (variant.quantity || 1);
       }, 0);
-
       return total + variantTotal;
     }, 0);
   };
+
+  if (loading) {
+    return (
+      <div className="bg-zinc-100 min-h-screen p-4 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg">Loading your cart...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-zinc-100 min-h-screen p-4 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-500 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-zinc-800 text-white px-4 py-2 rounded"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-zinc-100 min-h-screen p-4 sm:p-6 font-serif relative w-[95%] sm:w-[90%] mx-auto">
@@ -177,26 +213,28 @@ const CartPage = () => {
 
       {error && <p className="text-red-600 bg-red-100 p-3 rounded-lg text-center">{error}</p>}
 
-      {cart?.items.length > 0 ? (
+      {cart.items.length > 0 ? (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             {cart.items.flatMap((item) => {
-              const variants = variantData[item.product._id] || [{ variant: "hot", price: item.product.price }];
+              const variants = variantData[item.product?._id] || [{ variant: "hot", price: item.product?.price }];
 
               return variants.map((variantInfo, index) => (
                 <div
-                  key={`${item.product._id}-${variantInfo.variant}-${index}`}
+                  key={`${item.product?._id}-${variantInfo.variant}-${index}`}
                   className="bg-white border border-zinc-200 p-4 rounded-lg shadow-md"
                 >
                   <div className="flex items-center mb-4">
-                    <img
-                      src={`https://hypebeans.onrender.com/${item.product.image}`}
-                      alt={item.product.name}
-                      className="w-16 h-16 object-cover rounded-lg"
-                    />
+                    {item.product?.image && (
+                      <img
+                        src={`https://hypebeans.onrender.com/${item.product.image}`}
+                        alt={item.product.name}
+                        className="w-16 h-16 object-cover rounded-lg"
+                      />
+                    )}
                     <div className="ml-4 flex-1">
                       <h3 className="text-lg font-bold text-zinc-800">
-                        {item.product.name} ({variantInfo.variant.toUpperCase()})
+                        {item.product?.name} ({variantInfo.variant.toUpperCase()})
                       </h3>
                       <p className="text-zinc-600">₱{variantInfo.price} each</p>
                     </div>
@@ -218,14 +256,14 @@ const CartPage = () => {
                       <span className="px-4">{variantInfo.quantity || 1}</span>
                       <button
                         className={`px-3 py-1 rounded-r ${
-                          productStocks[item.product._id] !== undefined && 
-                          (variantInfo.quantity || 1) >= productStocks[item.product._id]
+                          productStocks[item.product?._id] !== undefined && 
+                          (variantInfo.quantity || 1) >= productStocks[item.product?._id]
                             ? "bg-zinc-300 cursor-not-allowed"
                             : "bg-zinc-200 hover:bg-zinc-300"
                         }`}
                         onClick={() => {
-                          if (productStocks[item.product._id] === undefined || 
-                              (variantInfo.quantity || 1) < productStocks[item.product._id]) {
+                          if (productStocks[item.product?._id] === undefined || 
+                              (variantInfo.quantity || 1) < productStocks[item.product?._id]) {
                             handleUpdateQuantity(
                               item.product._id,
                               (variantInfo.quantity || 1) + 1,
@@ -234,12 +272,12 @@ const CartPage = () => {
                           }
                         }}
                         disabled={
-                          loadingStocks[item.product._id] || 
-                          (productStocks[item.product._id] !== undefined && 
-                           (variantInfo.quantity || 1) >= productStocks[item.product._id])
+                          loadingStocks[item.product?._id] || 
+                          (productStocks[item.product?._id] !== undefined && 
+                           (variantInfo.quantity || 1) >= productStocks[item.product?._id])
                         }
                       >
-                        {loadingStocks[item.product._id] ? "..." : "+"}
+                        {loadingStocks[item.product?._id] ? "..." : "+"}
                       </button>
                     </div>
                     <button
@@ -249,7 +287,7 @@ const CartPage = () => {
                       Remove
                     </button>
                   </div>
-                  {productStocks[item.product._id] !== undefined && (
+                  {productStocks[item.product?._id] !== undefined && (
                     <div className="text-xs text-zinc-500 mt-1">
                       Available: {productStocks[item.product._id]}
                     </div>
