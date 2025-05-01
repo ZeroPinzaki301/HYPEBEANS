@@ -3,6 +3,7 @@ import Order from "../models/Order.model.js";
 import Product from "../models/Product.model.js";
 import Cart from "../models/Cart.model.js";
 import Ingredient from "../models/Ingredient.model.js";
+import InventoryLog from "../models/Inventorylog.model.js";
 import { io } from "../index.js";
 
 const router = express.Router();
