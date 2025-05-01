@@ -10,33 +10,30 @@ const CartPage = () => {
   const userId = localStorage.getItem("userId");
   const navigate = useNavigate();
 
-  // Fetch cart data with product population
+  // Fetch cart data
   const fetchCart = async () => {
     try {
       setLoading(true);
-      const { data } = await axiosInstance.get(`/api/cart/${userId}?populate=product`);
+      const { data } = await axiosInstance.get(`/api/cart/${userId}`);
       
-      console.log("Fetched cart:", data); // Debug log
+      console.log("API Response:", data); // Debug log
       
-      if (!data) {
-        throw new Error("No cart data received");
+      if (!data?.success || !data.cart) {
+        throw new Error("Invalid cart data received");
       }
 
-      // Transform items to ensure consistent structure
-      const transformedItems = data.items.map(item => ({
-        ...item,
-        product: item.product || { _id: item.product }, // Handle both populated and unpopulated
-        price: item.price || (item.product?.price || 0) // Fallback price
-      }));
+      // Ensure items array exists in the cart object
+      const cartData = {
+        ...data.cart,
+        items: data.cart.items || [] // Fallback to empty array
+      };
 
-      setCart({
-        ...data,
-        items: transformedItems
-      });
+      console.log("Processed Cart:", cartData); // Debug log
+      setCart(cartData);
     } catch (err) {
       console.error("Cart fetch error:", err);
       setError(err.response?.data?.message || "Failed to load cart");
-      setCart({ items: [] });
+      setCart({ items: [] }); // Reset to empty cart
     } finally {
       setLoading(false);
     }
@@ -123,7 +120,7 @@ const CartPage = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             {cart.items.map((item) => (
               <div
-                key={item._id || item.product._id}
+                key={item._id || item.product?._id}
                 className="bg-white border border-zinc-200 p-4 rounded-lg shadow-md"
               >
                 <div className="flex items-center mb-4">
@@ -136,7 +133,7 @@ const CartPage = () => {
                   )}
                   <div className="ml-4 flex-1">
                     <h3 className="text-lg font-bold text-zinc-800">
-                      {item.product?.name || "Unknown Product"}
+                      {item.product?.name || "Product"}
                     </h3>
                     <p className="text-zinc-600">₱{item.price.toFixed(2)} each</p>
                   </div>
