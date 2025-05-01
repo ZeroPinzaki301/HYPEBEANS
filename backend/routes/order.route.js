@@ -224,74 +224,96 @@ router.get("/", async (req, res) => {
 router.put("/update-status/:orderId", async (req, res) => {
   const { orderId } = req.params;
   const { status } = req.body;
+  const session = await mongoose.startSession(); // Start transaction
 
   try {
-    const order = await Order.findById(orderId).populate({
-      path: "items.product",
-      populate: {
-        path: "ingredients.ingredient",
-        model: "Ingredient"
-      }
-    });
-    
-    if (!order) return res.status(404).json({ message: "Order not found" });
+    session.startTransaction();
+
+    // 1. Fetch the order with populated product ingredients
+    const order = await Order.findById(orderId)
+      .populate({
+        path: "items.product",
+        populate: {
+          path: "ingredients.ingredient",
+          model: "Ingredient",
+        },
+      })
+      .session(session);
+
+    if (!order) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: "Order not found" });
+    }
 
     const wasPending = order.status === "Pending";
     const willAffectPending = wasPending || status === "Pending";
-    
-    // Handle ingredient deduction when status changes to "Out for Delivery"
+
+    // 2. Deduct ingredients ONLY when status changes to "Out for Delivery"
     if (status === "Out for Delivery" && order.status !== "Out for Delivery") {
-      // Deduct ingredients for each product in the order
       for (const item of order.items) {
         const product = item.product;
-        if (product.ingredients && product.ingredients.length > 0) {
+        if (product.ingredients?.length > 0) {
           for (const productIngredient of product.ingredients) {
-            // Calculate total quantity needed (quantity per product * order quantity)
+            const ingredientId = productIngredient.ingredient._id;
             const totalDeduction = productIngredient.quantityRequired * item.quantity;
-            
-            // Update the ingredient inventory
+
+            // Check stock availability
+            const ingredient = await Ingredient.findById(ingredientId).session(session);
+            if (ingredient.quantity < totalDeduction) {
+              await session.abortTransaction();
+              return res.status(400).json({
+                message: `Not enough ${ingredient.name} in stock (Available: ${ingredient.quantity}${ingredient.unit}, Needed: ${totalDeduction}${ingredient.unit})`,
+              });
+            }
+
+            // Deduct from inventory
             await Ingredient.findByIdAndUpdate(
-              productIngredient.ingredient._id,
-              { $inc: { quantity: -totalDeduction } }
+              ingredientId,
+              { $inc: { quantity: -totalDeduction } },
+              { session }
+            );
+
+            // (Optional) Log inventory change
+            await InventoryLog.create(
+              [{
+                ingredient: ingredientId,
+                change: -totalDeduction,
+                remaining: ingredient.quantity - totalDeduction,
+                order: orderId,
+                action: "order_fulfillment",
+              }],
+              { session }
             );
           }
         }
       }
     }
 
+    // 3. Update order status
     order.status = status;
-    await order.save();
+    await order.save({ session });
 
+    // 4. Commit transaction if everything succeeds
+    await session.commitTransaction();
+
+    // 5. Notify clients via Socket.IO
     io.emit("order-status-changed", { _id: order._id, status: order.status });
-
-    // Only emit update if pending status was affected
-    if (willAffectPending) {
-      await emitPendingOrdersUpdate();
-    }
+    if (willAffectPending) await emitPendingOrdersUpdate();
 
     res.status(200).json({
       message: "Order status updated successfully",
-      order
+      order,
     });
+
   } catch (error) {
+    await session.abortTransaction();
     console.error("Error updating order status:", error.message);
     res.status(500).json({
-      message: "Failed to update order status.",
-      error: error.message
+      message: "Failed to update order status",
+      error: error.message,
     });
-  }
-});
-
-// Get count of pending orders
-router.get('/pending-count', async (req, res) => {
-  try {
-    const count = await Order.countDocuments({ status: 'Pending' });
-    res.status(200).json({ count });
-  } catch (error) {
-    res.status(500).json({ 
-      message: 'Failed to get pending orders count',
-      error: error.message 
-    });
+  } finally {
+    session.endSession();
   }
 });
 
