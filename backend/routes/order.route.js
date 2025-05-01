@@ -3,7 +3,6 @@ import Order from "../models/Order.model.js";
 import Product from "../models/Product.model.js";
 import Cart from "../models/Cart.model.js";
 import Ingredient from "../models/Ingredient.model.js";
-import InventoryLog from "../models/Inventorylog.model.js";
 import { io } from "../index.js";
 
 const router = express.Router();
@@ -225,24 +224,18 @@ router.get("/", async (req, res) => {
 router.put("/update-status/:orderId", async (req, res) => {
   const { orderId } = req.params;
   const { status } = req.body;
-  const session = await mongoose.startSession(); // Start transaction
 
   try {
-    session.startTransaction();
-
-    // 1. Fetch the order with populated product ingredients
-    const order = await Order.findById(orderId)
-      .populate({
-        path: "items.product",
-        populate: {
-          path: "ingredients.ingredient",
-          model: "Ingredient",
-        },
-      })
-      .session(session);
+    // 1. Find the order with product ingredients populated
+    const order = await Order.findById(orderId).populate({
+      path: "items.product",
+      populate: {
+        path: "ingredients.ingredient",
+        model: "Ingredient",
+      },
+    });
 
     if (!order) {
-      await session.abortTransaction();
       return res.status(404).json({ message: "Order not found" });
     }
 
@@ -253,37 +246,15 @@ router.put("/update-status/:orderId", async (req, res) => {
     if (status === "Out for Delivery" && order.status !== "Out for Delivery") {
       for (const item of order.items) {
         const product = item.product;
-        if (product.ingredients?.length > 0) {
+        if (product?.ingredients?.length > 0) {
           for (const productIngredient of product.ingredients) {
             const ingredientId = productIngredient.ingredient._id;
             const totalDeduction = productIngredient.quantityRequired * item.quantity;
 
-            // Check stock availability
-            const ingredient = await Ingredient.findById(ingredientId).session(session);
-            if (ingredient.quantity < totalDeduction) {
-              await session.abortTransaction();
-              return res.status(400).json({
-                message: `Not enough ${ingredient.name} in stock (Available: ${ingredient.quantity}${ingredient.unit}, Needed: ${totalDeduction}${ingredient.unit})`,
-              });
-            }
-
-            // Deduct from inventory
+            // Update ingredient quantity
             await Ingredient.findByIdAndUpdate(
               ingredientId,
-              { $inc: { quantity: -totalDeduction } },
-              { session }
-            );
-
-            // (Optional) Log inventory change
-            await InventoryLog.create(
-              [{
-                ingredient: ingredientId,
-                change: -totalDeduction,
-                remaining: ingredient.quantity - totalDeduction,
-                order: orderId,
-                action: "order_fulfillment",
-              }],
-              { session }
+              { $inc: { quantity: -totalDeduction } }
             );
           }
         }
@@ -292,12 +263,9 @@ router.put("/update-status/:orderId", async (req, res) => {
 
     // 3. Update order status
     order.status = status;
-    await order.save({ session });
+    await order.save();
 
-    // 4. Commit transaction if everything succeeds
-    await session.commitTransaction();
-
-    // 5. Notify clients via Socket.IO
+    // 4. Notify clients via Socket.IO
     io.emit("order-status-changed", { _id: order._id, status: order.status });
     if (willAffectPending) await emitPendingOrdersUpdate();
 
@@ -307,14 +275,11 @@ router.put("/update-status/:orderId", async (req, res) => {
     });
 
   } catch (error) {
-    await session.abortTransaction();
     console.error("Error updating order status:", error.message);
     res.status(500).json({
       message: "Failed to update order status",
       error: error.message,
     });
-  } finally {
-    session.endSession();
   }
 });
 
