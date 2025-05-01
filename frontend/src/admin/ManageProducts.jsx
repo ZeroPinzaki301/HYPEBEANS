@@ -6,14 +6,18 @@ import { IoIosAdd } from "react-icons/io";
 
 const ManageProducts = () => {
   const [products, setProducts] = useState([]);
+  const [ingredients, setIngredients] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [error, setError] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedIngredient, setSelectedIngredient] = useState("");
+  const [quantityRequired, setQuantityRequired] = useState(1);
+  const [currentProductId, setCurrentProductId] = useState(null);
   const itemsPerPage = 10;
 
-  // Fetch Products
+  // Fetch Products and Ingredients
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -25,7 +29,17 @@ const ManageProducts = () => {
       }
     };
 
+    const fetchIngredients = async () => {
+      try {
+        const { data } = await axiosInstance.get("/api/ingredients");
+        setIngredients(data);
+      } catch (err) {
+        console.error("Fetch Ingredients Error:", err.message);
+      }
+    };
+
     fetchProducts();
+    fetchIngredients();
   }, []);
 
   // Add/Edit Product with Multer for image upload
@@ -73,6 +87,30 @@ const ManageProducts = () => {
     } catch (err) {
       setError("Failed to delete product. Please try again later.");
       console.error("Delete Product Error:", err.response?.data?.message || err.message);
+    }
+  };
+
+  // Function to handle adding an ingredient
+  const handleAddIngredient = async () => {
+    if (!selectedIngredient || !quantityRequired || !currentProductId) {
+      setError("Please select an ingredient and enter a quantity");
+      return;
+    }
+
+    try {
+      await axiosInstance.put(`/api/products/add-ingredient/${currentProductId}`, {
+        ingredientId: selectedIngredient,
+        quantityRequired: Number(quantityRequired),
+      });
+
+      const { data } = await axiosInstance.get("/api/products");
+      setProducts(data);
+      setSelectedIngredient("");
+      setQuantityRequired(1);
+      setCurrentProductId(null);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to add ingredient. Please try again.");
+      console.error("Add Ingredient Error:", err.message);
     }
   };
 
@@ -137,7 +175,22 @@ const ManageProducts = () => {
               alt={product.name}
               className="w-full h-40 object-cover rounded-lg mt-4"
             />
-            <div className="flex gap-4 mt-5">
+            
+            {/* Ingredients Section */}
+            {product.ingredients?.length > 0 && (
+              <div className="mt-4">
+                <h3 className="font-semibold">Ingredients:</h3>
+                <ul className="list-disc pl-5">
+                  {product.ingredients.map((ing, index) => (
+                    <li key={index}>
+                      {ing.ingredient.name} - {ing.quantityRequired} {ing.ingredient.unit}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-4 mt-5">
               <button
                 className="bg-zinc-800 text-white p-[.5em] rounded-lg cursor-pointer"
                 onClick={() => {
@@ -153,6 +206,42 @@ const ManageProducts = () => {
               >
                 Delete
               </button>
+              
+              {/* Add Ingredient Section */}
+              <div className="flex flex-col w-full mt-2">
+                <select
+                  className="p-2 border rounded-lg mb-2"
+                  value={selectedIngredient}
+                  onChange={(e) => {
+                    setSelectedIngredient(e.target.value);
+                    setCurrentProductId(product._id);
+                  }}
+                >
+                  <option value="">Select Ingredient</option>
+                  {ingredients.map((ingredient) => (
+                    <option key={ingredient._id} value={ingredient._id}>
+                      {ingredient.name}
+                    </option>
+                  ))}
+                </select>
+                
+                <input
+                  type="number"
+                  min="1"
+                  value={quantityRequired}
+                  onChange={(e) => setQuantityRequired(e.target.value)}
+                  className="p-2 border rounded-lg mb-2"
+                  placeholder="Quantity required"
+                />
+                
+                <button
+                  onClick={handleAddIngredient}
+                  className="bg-green-600 text-white p-[.5em] rounded-lg cursor-pointer"
+                  disabled={!selectedIngredient || !quantityRequired}
+                >
+                  Add Ingredient
+                </button>
+              </div>
             </div>
           </div>
         ))}
