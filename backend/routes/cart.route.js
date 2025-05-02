@@ -219,4 +219,14 @@ router.post("/reorder/:userId/:cartId", async (req, res) => {
     }
 });
 
+// Clear Cart
+router.delete("/clear/:userId", async (req, res) => {
+  try {
+    await Cart.findOneAndDelete({ user: req.params.userId, isActive: true });
+    res.status(200).json({ success: true, message: "Cart cleared" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to clear cart" });
+  }
+});
+
 export default router;
