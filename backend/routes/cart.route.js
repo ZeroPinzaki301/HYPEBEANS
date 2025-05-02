@@ -5,29 +5,39 @@ const router = express.Router();
 
 // Add item to cart
 router.post("/add", async (req, res) => {
-    const { userId, productId, quantity, price } = req.body;
-    
-    console.log("Request Body:", req.body); // Debugging request body
+  const { userId, productId, quantity, price, variant = "hot" } = req.body;
   
-    try {
-      let cart = await Cart.findOne({ user: userId }); // Ensure userId is valid
-      if (!cart) {
-        cart = new Cart({ user: userId, items: [] }); // Initialize cart with user
-      }
-  
-      const existingItem = cart.items.find((item) => item.product.toString() === productId);
-      if (existingItem) {
-        existingItem.quantity += quantity;
-      } else {
-        cart.items.push({ product: productId, quantity, price });
-      }
-  
-      await cart.save();
-      res.status(200).json({ message: "Item added to cart", cart });
-    } catch (error) {
-      console.error("Error in /cart/add:", error.message); // Debugging error
-      res.status(500).json({ message: "Server Error", error: error.message });
+  try {
+    let cart = await Cart.findOne({ user: userId });
+    if (!cart) {
+      cart = new Cart({ user: userId, items: [] });
     }
+  
+    // Check if same product with same variant already exists
+    const existingItem = cart.items.find(
+      (item) => 
+        item.product.toString() === productId && 
+        item.variant === variant
+    );
+  
+    if (existingItem) {
+      existingItem.quantity += quantity;
+      existingItem.price = price; // Update price in case it changed
+    } else {
+      cart.items.push({ 
+        product: productId, 
+        quantity, 
+        price,
+        variant 
+      });
+    }
+  
+    await cart.save();
+    res.status(200).json({ message: "Item added to cart", cart });
+  } catch (error) {
+    console.error("Error in /cart/add:", error.message);
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
 });
 
 // Update cart item quantity
