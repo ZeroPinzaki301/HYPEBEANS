@@ -184,7 +184,7 @@ const OngoingOrdersPage = () => {
                           ₱{(
                             order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0) + 
                             (order.purchaseType === "Delivery" ? 50 : 0)
-                          .toFixed(2)}
+                          .toFixed(2))}
                         </td>
                       </tr>
                     </tbody>
