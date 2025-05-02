@@ -40,53 +40,42 @@ router.post("/add", async (req, res) => {
   }
 });
 
-// Update cart item quantity (modified to handle variants)
-router.put("/update/:userId/:productId", async (req, res) => {
-  const { userId, productId } = req.params;
-  const { quantity, variant = "hot" } = req.body;
+// Update cart item quantity by item ID
+router.put("/update-item/:userId/:itemId", async (req, res) => {
+  const { userId, itemId } = req.params;
+  const { quantity } = req.body;
 
   try {
-    let cart = await Cart.findOne({ user: userId });
+    const cart = await Cart.findOne({ user: userId });
     if (!cart) return res.status(404).json({ message: "Cart not found" });
 
-    const item = cart.items.find(
-      (item) => 
-        item.product.toString() === productId && 
-        item.variant === variant
-    );
-    
-    if (item) {
-      item.quantity = quantity;
-    } else {
-      return res.status(404).json({ message: "Item not found in cart" });
-    }
+    const item = cart.items.id(itemId); // Mongoose subdocument ID lookup
+    if (!item) return res.status(404).json({ message: "Item not found in cart" });
 
+    item.quantity = quantity;
     await cart.save();
+    
     res.status(200).json({ message: "Cart updated", cart });
   } catch (error) {
-    console.error("Error in /cart/update:", error.message);
+    console.error("Error in /cart/update-item:", error.message);
     res.status(500).json({ message: "Server Error", error: error.message });
   }
 });
 
-// Remove item from cart (modified to handle variants)
-router.delete("/remove/:userId/:productId", async (req, res) => {
-  const { userId, productId } = req.params;
-  const { variant = "hot" } = req.query; // Get variant from query params
+// Remove item from cart by item ID
+router.delete("/remove-item/:userId/:itemId", async (req, res) => {
+  const { userId, itemId } = req.params;
 
   try {
-    let cart = await Cart.findOne({ user: userId });
+    const cart = await Cart.findOne({ user: userId });
     if (!cart) return res.status(404).json({ message: "Cart not found" });
 
-    cart.items = cart.items.filter(
-      (item) => 
-        !(item.product.toString() === productId && item.variant === variant)
-    );
-
+    cart.items.pull(itemId); // Mongoose subdocument removal by ID
     await cart.save();
+    
     res.status(200).json({ message: "Item removed from cart", cart });
   } catch (error) {
-    console.error("Error in /cart/remove:", error.message);
+    console.error("Error in /cart/remove-item:", error.message);
     res.status(500).json({ message: "Server Error", error: error.message });
   }
 });
