@@ -9,91 +9,80 @@ const router = express.Router();
 
 // Helper function to emit pending orders update
 const emitPendingOrdersUpdate = async () => {
-    try {
-        const count = await Order.countDocuments({ status: 'Pending' });
-        io.emit('pending-orders-updated', { count });
-    } catch (error) {
-        console.error('Error emitting pending orders update:', error);
-    }
+  try {
+    const count = await Order.countDocuments({ status: 'Pending' });
+    io.emit('pending-orders-updated', { count });
+  } catch (error) {
+    console.error('Error emitting pending orders update:', error);
+  }
 };
 
-// Place an Order
+// Place an Order (with text or GeoJSON location) and notify admin in real-time
 router.post("/checkout/:userId", async (req, res) => {
-    const { userId } = req.params;
-    const { paymentMethod, gpsLocation, manualAddress, purchaseType = "Delivery" } = req.body;
+  const { userId } = req.params;
+  const { paymentMethod, gpsLocation, manualAddress, purchaseType = "Delivery" } = req.body;
 
-    try {
-        // Find active cart
-        const cart = await Cart.findOne({ user: userId, isActive: true }).populate("items.product");
-        if (!cart || cart.items.length === 0) {
-            return res.status(400).json({ 
-                success: false,
-                message: "Cart is empty" 
-            });
-        }
-
-        // Create order data
-        const orderData = {
-            user: userId,
-            items: cart.items.map((item) => ({
-                product: item.product._id,
-                quantity: item.quantity,
-                price: item.price,
-            })),
-            paymentMethod,
-            paymentStatus: paymentMethod === "GCash" ? "Paid" : "Pending",
-            status: "Pending",
-            purchaseType,
-        };
-
-        // Handle delivery details
-        if (purchaseType === "Delivery") {
-            if (!gpsLocation || gpsLocation.type !== "Point" || 
-                !Array.isArray(gpsLocation.coordinates) || gpsLocation.coordinates.length !== 2) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Invalid GPS location format for delivery. Must be [longitude, latitude].",
-                });
-            }
-            orderData.deliveryLocation = gpsLocation;
-            orderData.manualAddress = manualAddress || "";
-        } else {
-            orderData.deliveryLocation = null;
-            orderData.manualAddress = undefined;
-        }
-
-        // Create and save order
-        const order = new Order(orderData);
-        await order.save();
-
-        // Deactivate the cart (instead of deleting)
-        await Cart.findByIdAndUpdate(cart._id, { isActive: false });
-
-        // Notify admins
-        io.emit("new-order", {
-            _id: order._id,
-            user: userId,
-            status: order.status,
-            ...(order.deliveryLocation && { deliveryLocation: order.deliveryLocation }),
-            items: order.items,
-            purchaseType: order.purchaseType,
-        });
-
-        // Update pending orders count
-        await emitPendingOrdersUpdate();
-
-        res.status(200).json({ 
-            success: true,
-            message: "Order placed successfully", 
-            order 
-        });
-    } catch (error) {
-        res.status(500).json({ 
-            success: false,
-            message: "Server Error", 
-            error: error.message 
-        });
+  try {
+    const cart = await Cart.findOne({ user: userId }).populate("items.product");
+    if (!cart || cart.items.length === 0) {
+      return res.status(400).json({ message: "Cart is empty" });
     }
+
+    const orderData = {
+      user: userId,
+      items: cart.items.map((item) => ({
+        product: item.product._id,
+        quantity: item.quantity,
+        price: item.price,
+      })),
+      paymentMethod,
+      paymentStatus: paymentMethod === "GCash" ? "Paid" : "Pending",
+      status: "Pending",
+      purchaseType,
+    };
+
+    if (purchaseType === "Delivery") {
+      if (
+        !gpsLocation ||
+        gpsLocation.type !== "Point" ||
+        !Array.isArray(gpsLocation.coordinates) ||
+        gpsLocation.coordinates.length !== 2
+      ) {
+        return res.status(400).json({
+          message: "Invalid GPS location format for delivery. Must be [longitude, latitude].",
+        });
+      }
+      orderData.deliveryLocation = gpsLocation;
+      orderData.manualAddress = manualAddress || "";
+    } else if (purchaseType === "Dine In") {
+      orderData.deliveryLocation = null; 
+      orderData.manualAddress = undefined;
+    }
+
+    const order = new Order(orderData);
+    await order.save();
+
+    // Clear the cart
+    await Cart.findOneAndDelete({ user: userId });
+
+    // Notify admins
+    io.emit("new-order", {
+      _id: order._id,
+      user: userId,
+      status: order.status,
+      deliveryLocation: order.deliveryLocation,
+      items: order.items,
+      purchaseType: order.purchaseType,
+    });
+
+    // Emit pending orders update
+    await emitPendingOrdersUpdate();
+
+    res.status(200).json({ message: "Order placed successfully", order });
+  } catch (error) {
+    console.error("Error during checkout:", error.message);
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
 });
 
 // Fetch Specific Order History for User
