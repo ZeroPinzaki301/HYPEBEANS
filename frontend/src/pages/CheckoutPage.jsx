@@ -5,249 +5,315 @@ import { useNavigate, useParams } from "react-router-dom";
 const CheckoutPage = () => {
   const navigate = useNavigate();
   const { userId } = useParams();
-  const [cart, setCart] = useState({ items: [] });
-  const [loading, setLoading] = useState(true);
+  const [cart, setCart] = useState([]);
+  const [variantData, setVariantData] = useState({});
+  const [gpsLocation, setGpsLocation] = useState(null);
+  const [manualAddress, setManualAddress] = useState("");
+  const [purchaseType, setPurchaseType] = useState("Delivery");
+  const [paymentMethod, setPaymentMethod] = useState("GCash");
+  const [gcashNumber, setGcashNumber] = useState("");
+  const [proofImage, setProofImage] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState("");
-  const [formData, setFormData] = useState({
-    gpsLocation: null,
-    manualAddress: "",
-    purchaseType: "Delivery",
-    paymentMethod: "GCash",
-    gcashNumber: "",
-    proofImage: null
-  });
 
   useEffect(() => {
-    const fetchCartData = async () => {
+    const fetchData = async () => {
       try {
-        setLoading(true);
-        // Fetch the current active cart with populated products
-        const { data } = await axiosInstance.get(`/api/cart/${userId}?populate=items.product`);
+        // Fetch cart from backend
+        const { data } = await axiosInstance.get(`/api/cart/${userId}`);
+        setCart(data.items);
+
+        // Load variant info from localStorage
+        const cartVariants = JSON.parse(localStorage.getItem('cartVariants') || '[]');
+        const variantsMap = {};
         
-        if (!data?.success || !data.cart) {
-          throw new Error("Failed to load cart data");
-        }
-
-        console.log("Fetched cart:", data.cart); // Debug log
-        setCart(data.cart);
-
+        cartVariants.forEach(item => {
+          if (!variantsMap[item.productId]) {
+            variantsMap[item.productId] = [];
+          }
+          variantsMap[item.productId].push({
+            variant: item.variant,
+            price: item.price,
+            quantity: item.quantity || 1
+          });
+        });
+        
+        setVariantData(variantsMap);
       } catch (error) {
-        console.error("Cart fetch error:", error);
-        setError(error.response?.data?.message || "Failed to load cart items");
-      } finally {
-        setLoading(false);
+        setError("Failed to fetch cart items.");
       }
     };
 
-    fetchCartData();
+    fetchData();
 
-    // Get GPS location if delivery
-    if (formData.purchaseType === "Delivery" && navigator.geolocation) {
+    // Get GPS location only for delivery orders
+    if (purchaseType === "Delivery" && "geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setFormData(prev => ({
-            ...prev,
-            gpsLocation: {
-              type: "Point",
-              coordinates: [position.coords.longitude, position.coords.latitude]
-            }
-          }));
+          setGpsLocation({
+            type: "Point",
+            coordinates: [position.coords.longitude, position.coords.latitude],
+          });
         },
-        (err) => {
-          console.error("Geolocation error:", err);
-          setError("Please enable location services for delivery");
-        }
+        (error) => console.error("GPS Error:", error)
       );
     }
-  }, [userId, formData.purchaseType]);
+  }, [userId, purchaseType]);
 
   const calculateTotals = () => {
-    if (!cart.items) return { subtotal: 0, deliveryFee: 0, total: 0, items: [] };
+    let subtotal = 0;
+    const items = [];
 
-    const items = cart.items.map(item => ({
-      product: item.product._id,
-      name: item.product.name,
-      price: item.price,
-      quantity: item.quantity
-    }));
+    cart.forEach(item => {
+      const variants = variantData[item.product._id] || [{ variant: 'hot', price: item.price }];
+      
+      variants.forEach(variant => {
+        const price = variant.price;
+        const quantity = variant.quantity || 1;
+        subtotal += price * quantity;
+        
+        items.push({
+          productId: item.product._id,
+          name: item.product.name,
+          variant: variant.variant,
+          price,
+          quantity
+        });
+      });
+    });
 
-    const subtotal = cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const deliveryFee = formData.purchaseType === "Delivery" ? 50 : 0;
+    const deliveryFee = purchaseType === "Delivery" ? 50 : 0;
     const total = subtotal + deliveryFee;
 
     return { subtotal, deliveryFee, total, items };
   };
 
-  const handleCheckout = async () => {
-    try {
-      setLoading(true);
-      const { items } = calculateTotals();
-
-      const orderData = {
-        items,
-        paymentMethod: formData.paymentMethod,
-        purchaseType: formData.purchaseType,
-        ...(formData.purchaseType === "Delivery" && {
-          deliveryLocation: formData.gpsLocation,
-          manualAddress: formData.manualAddress
-        })
+  const handleProofUpload = async (e) => {
+        e.preventDefault();
+        if (!gcashNumber || !proofImage) {
+          alert("Please provide your GCash number and upload the proof of payment.");
+          return;
+        }
+    
+        const formData = new FormData();
+        formData.append("userId", userId);
+        formData.append("gcashNumber", gcashNumber);
+        formData.append("proofImage", proofImage);
+    
+        try {
+          await axiosInstance.post("/api/payment-proof/upload", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          alert("Proof of payment uploaded successfully.");
+        } catch (error) {
+          alert("Failed to upload proof of payment.");
+        }
       };
 
-      const response = await axiosInstance.post(`/api/orders/checkout/${userId}`, orderData);
-      
-      if (response.data.success) {
-        // Clear cart after successful checkout
-        await axiosInstance.delete(`/api/cart/clear/${userId}`);
-        navigate("/orders/ongoing");
-      } else {
-        throw new Error(response.data.message || "Checkout failed");
+  const handleCheckout = async () => {
+    // Only validate GPS for delivery orders
+    if (purchaseType === "Delivery") {
+      if (!gpsLocation) {
+        alert("Please enable GPS for delivery");
+        return;
       }
+
+      if (
+        !gpsLocation ||
+        gpsLocation.type !== "Point" ||
+        !Array.isArray(gpsLocation.coordinates) ||
+        gpsLocation.coordinates.length !== 2
+      ) {
+        alert("Invalid GPS location format. Please enable location services.");
+        return;
+      }
+    }
+
+    if (paymentMethod === "GCash" && (!gcashNumber || gcashNumber.length !== 11)) {
+      alert("Please enter a valid GCash number");
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const { items } = calculateTotals();
+      
+      await axiosInstance.post(`/api/orders/checkout/${userId}`, {
+        items,
+        gpsLocation: purchaseType === "Delivery" ? gpsLocation : undefined,
+        manualAddress: purchaseType === "Delivery" ? manualAddress : undefined,
+        paymentMethod,
+        paymentStatus: paymentMethod === "GCash" ? "Paid" : "Pending",
+        purchaseType
+      });
+
+      // Clear cart variants from localStorage after successful checkout
+      localStorage.removeItem('cartVariants');
+      
+      alert("Order placed successfully!");
+      navigate("/orders/ongoing");
     } catch (error) {
-      console.error("Checkout error:", error);
-      setError(error.response?.data?.message || "Checkout failed. Please try again.");
+      setError(error.response?.data?.message || "Checkout failed");
     } finally {
-      setLoading(false);
+      setIsProcessing(false);
     }
   };
-
-  if (loading) return <div className="p-4 text-center">Loading cart...</div>;
-  if (error) return <div className="p-4 text-center text-red-500">{error}</div>;
 
   const { subtotal, deliveryFee, total } = calculateTotals();
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-6">Checkout</h1>
-      
-      {cart.items?.length > 0 ? (
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Order Summary */}
-          <div className="bg-white p-4 rounded shadow">
+    <div className="bg-gray-100 min-h-screen p-6 font-serif">
+      <h1 className="text-4xl font-bold text-center mb-8">Checkout</h1>
+
+      {error && <p className="text-red-600 bg-red-100 p-4 rounded-lg mb-4">{error}</p>}
+
+      {cart.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Left Column - Cart Items */}
+          <div className="bg-white p-4 rounded-lg shadow">
             <h2 className="text-xl font-bold mb-4">Your Order</h2>
-            {cart.items.map(item => (
-              <div key={item.product._id} className="flex justify-between py-2 border-b">
-                <span>{item.product.name}</span>
-                <span>{item.quantity} × ₱{item.price.toFixed(2)}</span>
-              </div>
-            ))}
-            <div className="mt-4 pt-2 border-t">
-              <div className="flex justify-between">
-                <span>Subtotal:</span>
-                <span>₱{subtotal.toFixed(2)}</span>
-              </div>
-              {formData.purchaseType === "Delivery" && (
-                <div className="flex justify-between">
-                  <span>Delivery Fee:</span>
-                  <span>₱{deliveryFee.toFixed(2)}</span>
+            {cart.flatMap(item => {
+              const variants = variantData[item.product._id] || [{ variant: 'hot', price: item.price, quantity: 1 }];
+              return variants.map((variant, index) => (
+                <div key={`${item.product._id}-${variant.variant}-${index}`} className="flex justify-between py-2 border-b">
+                  <span>
+                    {item.product.name} ({variant.variant.toUpperCase()})
+                  </span>
+                  <span>
+                    {variant.quantity || 1} × ₱{variant.price}
+                  </span>
                 </div>
-              )}
-              <div className="flex justify-between font-bold mt-2">
-                <span>Total:</span>
-                <span>₱{total.toFixed(2)}</span>
-              </div>
-            </div>
+              ));
+            })}
           </div>
 
-          {/* Checkout Form */}
-          <div className="bg-white p-4 rounded shadow">
-            <h2 className="text-xl font-bold mb-4">Order Details</h2>
-            
-            <div className="mb-4">
-              <label className="block mb-2 font-medium">Order Type</label>
-              <div className="flex gap-4">
+          {/* Right Column - Checkout Form */}
+          <div className="space-y-4">
+            <div className="bg-white p-4 rounded-lg shadow">
+              <h2 className="text-xl font-bold mb-4">Order Type</h2>
+              <div className="flex gap-4 mb-4">
                 <label className="flex items-center">
                   <input
                     type="radio"
-                    checked={formData.purchaseType === "Delivery"}
-                    onChange={() => setFormData({...formData, purchaseType: "Delivery"})}
                     className="mr-2"
+                    checked={purchaseType === "Delivery"}
+                    onChange={() => setPurchaseType("Delivery")}
                   />
                   Delivery
                 </label>
                 <label className="flex items-center">
                   <input
                     type="radio"
-                    checked={formData.purchaseType === "Dine In"}
-                    onChange={() => setFormData({...formData, purchaseType: "Dine In"})}
                     className="mr-2"
+                    checked={purchaseType === "Dine In"}
+                    onChange={() => setPurchaseType("Dine In")}
                   />
                   Dine In
                 </label>
               </div>
-            </div>
 
-            {formData.purchaseType === "Delivery" && (
-              <div className="mb-4">
-                <label className="block mb-2 font-medium">Delivery Address</label>
-                <input
-                  type="text"
-                  value={formData.manualAddress}
-                  onChange={(e) => setFormData({...formData, manualAddress: e.target.value})}
-                  className="w-full p-2 border rounded"
-                  placeholder="Enter your address"
-                  required
-                />
-              </div>
-            )}
-
-            <div className="mb-4">
-              <label className="block mb-2 font-medium">Payment Method</label>
-              <select
-                value={formData.paymentMethod}
-                onChange={(e) => setFormData({...formData, paymentMethod: e.target.value})}
-                className="w-full p-2 border rounded"
-              >
-                <option value="GCash">GCash</option>
-                <option value="Cash">Cash</option>
-              </select>
-            </div>
-
-            {formData.paymentMethod === "GCash" && (
-              <>
-                <div className="mb-4">
-                  <label className="block mb-2 font-medium">GCash Number</label>
+              {purchaseType === "Delivery" && (
+                <>
                   <input
                     type="text"
-                    value={formData.gcashNumber}
-                    onChange={(e) => setFormData({...formData, gcashNumber: e.target.value})}
-                    className="w-full p-2 border rounded"
-                    placeholder="09123456789"
-                    pattern="09[0-9]{9}"
-                    required
+                    placeholder="Delivery Address"
+                    className="w-full p-2 border rounded mb-4"
+                    value={manualAddress}
+                    onChange={(e) => setManualAddress(e.target.value)}
                   />
-                </div>
+
+                  <div className="mb-4">
+                    <label className="block font-semibold mb-2">Payment Method</label>
+                    <select
+                      className="w-full p-2 border rounded"
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                    >
+                      <option value="GCash">GCash</option>
+                      <option value="Cash on Delivery">Cash on Delivery</option>
+                    </select>
+                  </div>
+                </>
+              )}
+
+              {purchaseType === "Dine In" && (
                 <div className="mb-4">
-                  <label className="block mb-2 font-medium">Proof of Payment</label>
+                  <label className="block font-semibold mb-2">Payment Method</label>
+                  <select
+                    className="w-full p-2 border rounded"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="GCash">GCash</option>
+                  </select>
+                </div>
+              )}
+
+              {paymentMethod === "GCash" && (
+                <div className="space-y-2">
+                  <div className="bg-blue-50 p-4 rounded mb-2">
+                    <p className="font-bold text-center">Send payment to:</p>
+                    <p className="text-xl font-bold text-center">0999 503 1403</p>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Your GCash Number"
+                    className="w-full p-2 border rounded"
+                    value={gcashNumber}
+                    onChange={(e) => setGcashNumber(e.target.value)}
+                  />
+                  <label className="block mt-4 font-semibold">Upload Proof of Payment: (Screenshot of GCash payment receipt)</label>
                   <input
                     type="file"
-                    onChange={(e) => setFormData({...formData, proofImage: e.target.files[0]})}
-                    className="w-full p-2 border rounded"
-                    accept="image/*"
-                    required
+                    className="w-full p-2 border rounded-md"
+                    onChange={(e) => setProofImage(e.target.files[0])}
                   />
+                  <button
+                    className="mt-4 bg-zinc-800 text-white px-4 py-2 rounded-md hover:bg-zinc-600 transition cursor-pointer"
+                    onClick={handleProofUpload}
+                  >
+                    Upload Proof
+                </button>
                 </div>
-              </>
-            )}
+              )}
+            </div>
+
+            {/* Order Summary */}
+            <div className="bg-white p-4 rounded-lg shadow">
+              <h2 className="text-xl font-bold mb-4">Order Summary</h2>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span>₱{subtotal.toFixed(2)}</span>
+                </div>
+                {purchaseType === "Delivery" && (
+                  <div className="flex justify-between">
+                    <span>Delivery Fee:</span>
+                    <span>₱{deliveryFee.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold text-lg">
+                  <span>Total:</span>
+                  <span>₱{total.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
 
             <button
               onClick={handleCheckout}
-              disabled={loading}
-              className="w-full bg-black text-white py-3 rounded hover:bg-gray-800 disabled:bg-gray-400"
+              disabled={isProcessing}
+              className={`w-full py-3 rounded-lg font-bold text-white ${
+                isProcessing ? "bg-gray-400" : "bg-black hover:bg-gray-800"
+              } transition`}
             >
-              {loading ? "Processing..." : "Place Order"}
+              {isProcessing ? "Processing..." : "Place Order"}
             </button>
           </div>
         </div>
       ) : (
-        <div className="text-center py-8">
-          <p className="mb-4">Your cart is empty</p>
-          <button
-            onClick={() => navigate("/menu")}
-            className="bg-black text-white px-4 py-2 rounded"
-          >
-            Browse Menu
-          </button>
-        </div>
+        <p className="text-center text-gray-500">Your cart is empty</p>
       )}
     </div>
   );
