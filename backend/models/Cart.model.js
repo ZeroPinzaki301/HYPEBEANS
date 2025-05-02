@@ -25,10 +25,6 @@ const cartSchema = new mongoose.Schema(
         },
       },
     ],
-    isActive: {
-      type: Boolean,
-      default: true, // New carts are active by default
-    },
   },
   { timestamps: true } // Automatically adds createdAt and updatedAt
 );
