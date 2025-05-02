@@ -6,6 +6,7 @@ import { FiShoppingCart, FiClock } from "react-icons/fi";
 const CartHistoryPage = () => {
   const [carts, setCarts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const { userId } = useParams();
   const navigate = useNavigate();
 
@@ -13,9 +14,18 @@ const CartHistoryPage = () => {
     const fetchCartHistory = async () => {
       try {
         const { data } = await axiosInstance.get(`/api/cart/history/${userId}`);
-        setCarts(data);
+        
+        if (!data.success) {
+          throw new Error(data.message || "Failed to load cart history");
+        }
+
+        // Ensure we're working with an array
+        const cartData = Array.isArray(data.data) ? data.data : [];
+        setCarts(cartData);
+        
       } catch (error) {
-        console.error("Failed to load cart history");
+        console.error("Failed to load cart history:", error);
+        setError(error.message);
       } finally {
         setLoading(false);
       }
@@ -27,14 +37,19 @@ const CartHistoryPage = () => {
   const handleReorder = async (cartId) => {
     try {
       const { data } = await axiosInstance.post(`/api/cart/reorder/${userId}/${cartId}`);
-      console.log(data.message);
-      navigate("/cart"); // Redirect to cart page
+      if (data.success) {
+        navigate("/cart");
+      } else {
+        throw new Error(data.message);
+      }
     } catch (error) {
-      console.error(error.response?.data?.message || "Failed to reorder items");
+      console.error("Reorder failed:", error);
+      setError(error.message);
     }
   };
 
   if (loading) return <div className="p-4 text-center">Loading...</div>;
+  if (error) return <div className="p-4 text-center text-red-500">{error}</div>;
 
   return (
     <div className="container mx-auto p-4 max-w-3xl">
@@ -55,15 +70,15 @@ const CartHistoryPage = () => {
                   {new Date(cart.updatedAt).toLocaleString()}
                 </h3>
                 <span className="text-sm bg-gray-100 px-2 py-1 rounded">
-                  {cart.items.length} items
+                  {cart.items?.length || 0} items
                 </span>
               </div>
 
               <ul className="mb-4 space-y-2">
-                {cart.items.map((item) => (
-                  <li key={item.product._id} className="flex justify-between">
+                {cart.items?.map((item) => (
+                  <li key={item.product?._id} className="flex justify-between">
                     <span>
-                      {item.product.name} × {item.quantity}
+                      {item.product?.name || "Unknown Product"} × {item.quantity}
                     </span>
                     <span>₱{(item.price * item.quantity).toFixed(2)}</span>
                   </li>
@@ -72,7 +87,7 @@ const CartHistoryPage = () => {
 
               <div className="flex justify-between items-center border-t pt-3">
                 <span className="font-bold">
-                  ₱{cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(2)}
+                  ₱{cart.items?.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(2)}
                 </span>
                 <button
                   onClick={() => handleReorder(cart._id)}
