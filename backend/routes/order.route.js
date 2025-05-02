@@ -85,6 +85,19 @@ router.post("/checkout/:userId", async (req, res) => {
   }
 });
 
+// Get count of pending orders
+router.get('/pending-count', async (req, res) => {
+  try {
+    const count = await Order.countDocuments({ status: 'Pending' });
+    res.status(200).json({ count });
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'Failed to get pending orders count',
+      error: error.message 
+    });
+  }
+});
+
 // Fetch Specific Order History for User
 router.get("/history/:userId", async (req, res) => {
   const { userId } = req.params;
