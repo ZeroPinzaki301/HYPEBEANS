@@ -30,124 +30,119 @@ const CartPage = () => {
 
   // Fetch cart and product data
   useEffect(() => {
-    if (!userId) {
-      setError("User not found. Please log in.");
-      return;
+  if (!userId) {
+    setError("User not found. Please log in.");
+    return;
+  }
+
+  const fetchData = async () => {
+    try {
+      // Fetch cart from backend
+      const { data: cartData } = await axiosInstance.get(`/api/cart/${userId}`);
+      
+      // Fetch variant data from localStorage
+      const cartVariants = JSON.parse(localStorage.getItem("cartVariants") || "[]");
+      const variantsMap = {};
+
+      // Create a mapping of productId to variant info
+      cartVariants.forEach((item) => {
+        if (!variantsMap[item.productId]) {
+          variantsMap[item.productId] = [];
+        }
+        variantsMap[item.productId].push({
+          variant: item.variant,
+          price: item.price,
+          quantity: item.quantity || 1,
+        });
+      });
+
+      // Merge backend cart data with variant info
+      const mergedCart = {
+        ...cartData,
+        items: cartData.items.map(item => {
+          const variants = variantsMap[item.product._id] || [];
+          return {
+            ...item,
+            variant: variants.length > 0 ? variants[0].variant : "hot"
+          };
+        })
+      };
+
+      setVariantData(variantsMap);
+      setCart(mergedCart);
+
+      // Fetch stock for each product in cart
+      mergedCart.items.forEach(item => {
+        fetchProductStock(item.product._id);
+      });
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to fetch cart items.");
     }
+  };
 
-    const fetchData = async () => {
-      try {
-        const { data } = await axiosInstance.get(`/api/cart/${userId}`);
-        const cartVariants = JSON.parse(localStorage.getItem("cartVariants") || "[]");
-        const variantsMap = {};
-
-        cartVariants.forEach((item) => {
-          if (!variantsMap[item.productId]) {
-            variantsMap[item.productId] = [];
-          }
-          variantsMap[item.productId].push({
-            variant: item.variant,
-            price: item.price,
-            quantity: item.quantity || 1,
-          });
-        });
-
-        setVariantData(variantsMap);
-        setCart(data);
-
-        // Fetch stock for each product in cart
-        data.items.forEach(item => {
-          fetchProductStock(item.product._id);
-        });
-      } catch (err) {
-        setError(err.response?.data?.message || "Failed to fetch cart items.");
-      }
-    };
-
-    fetchData();
-  }, [userId]);
+  fetchData();
+}, [userId]);
 
   // Update quantity of a product
-  const handleUpdateQuantity = async (productId, newQuantity, variant) => {
-    try {
-      // Update in localStorage
-      const cartVariants = JSON.parse(localStorage.getItem("cartVariants") || "[]");
-      const itemIndex = cartVariants.findIndex(
-        (item) => item.productId === productId && item.variant === variant
-      );
+const handleUpdateQuantity = async (productId, newQuantity, variant) => {
+  try {
+    // Update in localStorage
+    const cartVariants = JSON.parse(localStorage.getItem("cartVariants") || "[]");
+    const itemIndex = cartVariants.findIndex(
+      (item) => item.productId === productId && item.variant === variant
+    );
 
-      if (itemIndex >= 0) {
-        cartVariants[itemIndex].quantity = newQuantity;
-        localStorage.setItem("cartVariants", JSON.stringify(cartVariants));
-      }
-
-      // Update state
-      const variantsMap = {};
-      cartVariants.forEach((item) => {
-        if (!variantsMap[item.productId]) {
-          variantsMap[item.productId] = [];
-        }
-        variantsMap[item.productId].push({
-          variant: item.variant,
-          price: item.price,
-          quantity: item.quantity || 1,
-        });
-      });
-      setVariantData(variantsMap);
-
-      // Update in backend
-      await axiosInstance.put(`/api/cart/update/${userId}/${productId}`, {
-        quantity: newQuantity,
-      });
-
-      // Update cart state
-      setCart((prev) => ({
-        ...prev,
-        items: prev.items.map((item) =>
-          item.product._id === productId ? { ...item, quantity: newQuantity } : item
-        ),
-      }));
-    } catch (err) {
-      setError("Failed to update quantity.");
-    }
-  };
-
-  // Remove an item from the cart
-  const handleRemoveItem = async (productId, variant) => {
-    try {
-      // Remove from localStorage
-      let cartVariants = JSON.parse(localStorage.getItem("cartVariants") || "[]");
-      cartVariants = cartVariants.filter(
-        (item) => !(item.productId === productId && item.variant === variant)
-      );
+    if (itemIndex >= 0) {
+      cartVariants[itemIndex].quantity = newQuantity;
       localStorage.setItem("cartVariants", JSON.stringify(cartVariants));
-
-      // Update state
-      const variantsMap = {};
-      cartVariants.forEach((item) => {
-        if (!variantsMap[item.productId]) {
-          variantsMap[item.productId] = [];
-        }
-        variantsMap[item.productId].push({
-          variant: item.variant,
-          price: item.price,
-          quantity: item.quantity || 1,
-        });
-      });
-      setVariantData(variantsMap);
-
-      // Remove from backend
-      await axiosInstance.delete(`/api/cart/remove/${userId}/${productId}`);
-
-      // Update cart state
-      setCart((prev) => ({
-        ...prev,
-        items: prev.items.filter((item) => item.product._id !== productId),
-      }));
-    } catch (err) {
-      setError("Failed to remove item.");
     }
-  };
+
+    // Update in backend
+    await axiosInstance.put(`/api/cart/update/${userId}/${productId}`, {
+      quantity: newQuantity,
+      variant // Include variant in the request
+    });
+
+    // Update state
+    setCart((prev) => ({
+      ...prev,
+      items: prev.items.map((item) =>
+        item.product._id === productId && item.variant === variant
+          ? { ...item, quantity: newQuantity }
+          : item
+      ),
+    }));
+  } catch (err) {
+    setError("Failed to update quantity.");
+  }
+};
+
+// Remove an item from the cart
+const handleRemoveItem = async (productId, variant) => {
+  try {
+    // Remove from localStorage
+    let cartVariants = JSON.parse(localStorage.getItem("cartVariants") || "[]");
+    cartVariants = cartVariants.filter(
+      (item) => !(item.productId === productId && item.variant === variant)
+    );
+    localStorage.setItem("cartVariants", JSON.stringify(cartVariants));
+
+    // Remove from backend
+    await axiosInstance.delete(`/api/cart/remove/${userId}/${productId}`, {
+      params: { variant } // Pass variant as query parameter
+    });
+
+    // Update cart state
+    setCart((prev) => ({
+      ...prev,
+      items: prev.items.filter(
+        (item) => !(item.product._id === productId && item.variant === variant)
+      ),
+    }));
+  } catch (err) {
+    setError("Failed to remove item.");
+  }
+};
 
   // Calculate total price
   const calculateTotalPrice = () => {
@@ -181,8 +176,12 @@ const CartPage = () => {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             {cart.items.flatMap((item) => {
-              const variants = variantData[item.product._id] || [{ variant: "hot", price: item.product.price }];
-
+              const variants = variantData[item.product._id] || [{ 
+                variant: item.variant || "hot", 
+                price: item.price || item.product.price,
+                quantity: item.quantity || 1
+              }];
+            
               return variants.map((variantInfo, index) => (
                 <div
                   key={`${item.product._id}-${variantInfo.variant}-${index}`}
