@@ -300,4 +300,32 @@ router.get("/:orderId", async (req, res) => {
   }
 });
 
+// Reorder an existing order (set status back to Pending)
+router.put("/reorder/:orderId", async (req, res) => {
+  const { orderId } = req.params;
+  const { status } = req.body;
+
+  try {
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: "Order not found." });
+    }
+
+    // Only allow reordering Delivered/Canceled orders
+    if (!["Delivered", "Canceled"].includes(order.status)) {
+      return res.status(400).json({ message: "Only completed/canceled orders can be reordered." });
+    }
+
+    order.status = status;
+    await order.save();
+
+    // Notify admin via Socket.IO (optional)
+    io.emit("order-reordered", order);
+
+    res.status(200).json({ message: "Order reordered successfully.", order });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to reorder.", error: error.message });
+  }
+});
+
 export default router;
