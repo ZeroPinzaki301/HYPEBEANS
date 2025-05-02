@@ -170,6 +170,23 @@ const OngoingOrdersPage = () => {
                           </td>
                         </tr>
                       ))}
+                      {/* Delivery Fee Row (if applicable) */}
+                      {order.purchaseType === "Delivery" && (
+                        <tr>
+                          <td colSpan="2" className="border px-4 py-2 font-semibold text-right">Delivery Fee:</td>
+                          <td className="border px-4 py-2">₱50.00</td>
+                        </tr>
+                      )}
+                      {/* Total Price Row */}
+                      <tr className="bg-gray-100">
+                        <td colSpan="2" className="border px-4 py-2 font-bold text-right">Total:</td>
+                        <td className="border px-4 py-2 font-bold">
+                          ₱{(
+                            order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0) + 
+                            (order.purchaseType === "Delivery" ? 50 : 0)
+                          .toFixed(2)}
+                        </td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>
