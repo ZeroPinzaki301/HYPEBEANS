@@ -173,19 +173,16 @@ const CheckoutPage = () => {
           {/* Left Column - Cart Items */}
           <div className="bg-white p-4 rounded-lg shadow">
             <h2 className="text-xl font-bold mb-4">Your Order</h2>
-            {cart.flatMap(item => {
-              const variants = variantData[item.product._id] || [{ variant: 'hot', price: item.price, quantity: 1 }];
-              return variants.map((variant, index) => (
-                <div key={`${item.product._id}-${variant.variant}-${index}`} className="flex justify-between py-2 border-b">
-                  <span>
-                    {item.product.name} ({variant.variant.toUpperCase()})
-                  </span>
-                  <span>
-                    {variant.quantity || 1} × ₱{variant.price}
-                  </span>
-                </div>
-              ));
-            })}
+            {cart.map((item) => (
+              <div key={`${item.product._id}-${item.variant}`} className="flex justify-between py-2 border-b">
+                <span>
+                  {item.product.name} ({item.variant?.toUpperCase() || 'HOT'})
+                </span>
+                <span>
+                  {item.quantity || 1} × ₱{item.price}
+                </span>
+              </div>
+            ))}
           </div>
 
           {/* Right Column - Checkout Form */}
