@@ -6,7 +6,6 @@ import { useNavigate } from "react-router-dom";
 const CartPage = () => {
   const [cart, setCart] = useState(null);
   const [error, setError] = useState("");
-  const [variantData, setVariantData] = useState({});
   const [productStocks, setProductStocks] = useState({});
   const [loadingStocks, setLoadingStocks] = useState({});
   const userId = localStorage.getItem("userId");
@@ -19,7 +18,7 @@ const CartPage = () => {
       const { data } = await axiosInstance.get(`/api/products/${productId}`);
       setProductStocks(prev => ({
         ...prev,
-        [productId]: data.stock
+        [productId]: data.variants // Now using variants stock from backend
       }));
     } catch (err) {
       console.error(`Failed to fetch stock for product ${productId}:`, err);
@@ -30,132 +29,67 @@ const CartPage = () => {
 
   // Fetch cart and product data
   useEffect(() => {
-  if (!userId) {
-    setError("User not found. Please log in.");
-    return;
-  }
+    if (!userId) {
+      setError("User not found. Please log in.");
+      return;
+    }
 
-  const fetchData = async () => {
-    try {
-      // Fetch cart from backend
-      const { data: cartData } = await axiosInstance.get(`/api/cart/${userId}`);
-      
-      // Fetch variant data from localStorage
-      const cartVariants = JSON.parse(localStorage.getItem("cartVariants") || "[]");
-      const variantsMap = {};
+    const fetchData = async () => {
+      try {
+        const { data } = await axiosInstance.get(`/api/cart/${userId}`);
+        setCart(data);
 
-      // Create a mapping of productId to variant info
-      cartVariants.forEach((item) => {
-        if (!variantsMap[item.productId]) {
-          variantsMap[item.productId] = [];
-        }
-        variantsMap[item.productId].push({
-          variant: item.variant,
-          price: item.price,
-          quantity: item.quantity || 1,
+        // Fetch stock for each unique product in cart
+        const uniqueProductIds = [...new Set(data.items.map(item => item.product._id))];
+        uniqueProductIds.forEach(productId => {
+          fetchProductStock(productId);
         });
+      } catch (err) {
+        setError(err.response?.data?.message || "Failed to fetch cart items.");
+      }
+    };
+
+    fetchData();
+  }, [userId]);
+
+  // Update quantity of a cart item
+  const handleUpdateQuantity = async (itemId, newQuantity) => {
+    try {
+      await axiosInstance.put(`/api/cart/update/${userId}/${itemId}`, {
+        quantity: newQuantity
       });
 
-      // Merge backend cart data with variant info
-      const mergedCart = {
-        ...cartData,
-        items: cartData.items.map(item => {
-          const variants = variantsMap[item.product._id] || [];
-          return {
-            ...item,
-            variant: variants.length > 0 ? variants[0].variant : "hot"
-          };
-        })
-      };
-
-      setVariantData(variantsMap);
-      setCart(mergedCart);
-
-      // Fetch stock for each product in cart
-      mergedCart.items.forEach(item => {
-        fetchProductStock(item.product._id);
-      });
+      // Update local state
+      setCart(prev => ({
+        ...prev,
+        items: prev.items.map(item => 
+          item._id === itemId ? { ...item, quantity: newQuantity } : item
+        )
+      }));
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to fetch cart items.");
+      setError("Failed to update quantity.");
     }
   };
 
-  fetchData();
-}, [userId]);
+  // Remove an item from the cart
+  const handleRemoveItem = async (itemId) => {
+    try {
+      await axiosInstance.delete(`/api/cart/remove/${userId}/${itemId}`);
 
-  // Update quantity of a product
-const handleUpdateQuantity = async (productId, newQuantity, variant) => {
-  try {
-    // Update in localStorage
-    const cartVariants = JSON.parse(localStorage.getItem("cartVariants") || "[]");
-    const itemIndex = cartVariants.findIndex(
-      (item) => item.productId === productId && item.variant === variant
-    );
-
-    if (itemIndex >= 0) {
-      cartVariants[itemIndex].quantity = newQuantity;
-      localStorage.setItem("cartVariants", JSON.stringify(cartVariants));
+      // Update local state
+      setCart(prev => ({
+        ...prev,
+        items: prev.items.filter(item => item._id !== itemId)
+      }));
+    } catch (err) {
+      setError("Failed to remove item.");
     }
-
-    // Update in backend
-    await axiosInstance.put(`/api/cart/update/${userId}/${productId}`, {
-      quantity: newQuantity,
-      variant // Include variant in the request
-    });
-
-    // Update state
-    setCart((prev) => ({
-      ...prev,
-      items: prev.items.map((item) =>
-        item.product._id === productId && item.variant === variant
-          ? { ...item, quantity: newQuantity }
-          : item
-      ),
-    }));
-  } catch (err) {
-    setError("Failed to update quantity.");
-  }
-};
-
-// Remove an item from the cart
-const handleRemoveItem = async (productId, variant) => {
-  try {
-    // Remove from localStorage
-    let cartVariants = JSON.parse(localStorage.getItem("cartVariants") || "[]");
-    cartVariants = cartVariants.filter(
-      (item) => !(item.productId === productId && item.variant === variant)
-    );
-    localStorage.setItem("cartVariants", JSON.stringify(cartVariants));
-
-    // Remove from backend
-    await axiosInstance.delete(`/api/cart/remove/${userId}/${productId}`, {
-      params: { variant } // Pass variant as query parameter
-    });
-
-    // Update cart state
-    setCart((prev) => ({
-      ...prev,
-      items: prev.items.filter(
-        (item) => !(item.product._id === productId && item.variant === variant)
-      ),
-    }));
-  } catch (err) {
-    setError("Failed to remove item.");
-  }
-};
+  };
 
   // Calculate total price
   const calculateTotalPrice = () => {
     if (!cart) return 0;
-
-    return cart.items.reduce((total, item) => {
-      const variants = variantData[item.product._id] || [];
-      const variantTotal = variants.reduce((sum, variant) => {
-        return sum + variant.price * (variant.quantity || 1);
-      }, 0);
-
-      return total + variantTotal;
-    }, 0);
+    return cart.items.reduce((total, item) => total + (item.price * item.quantity), 0);
   };
 
   return (
@@ -175,89 +109,73 @@ const handleRemoveItem = async (productId, variant) => {
       {cart?.items.length > 0 ? (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-            {cart.items.flatMap((item) => {
-              const variants = variantData[item.product._id] || [{ 
-                variant: item.variant || "hot", 
-                price: item.price || item.product.price,
-                quantity: item.quantity || 1
-              }];
-            
-              return variants.map((variantInfo, index) => (
+            {cart.items.map((item) => {
+              const stockInfo = productStocks[item.product._id]?.[item.variant] || {};
+              const maxQuantity = stockInfo.stock || Infinity;
+
+              return (
                 <div
-                  key={`${item.product._id}-${variantInfo.variant}-${index}`}
+                  key={item._id}
                   className="bg-white border border-zinc-200 p-4 rounded-lg shadow-md"
                 >
                   <div className="flex items-center mb-4">
                     <img
-                      src={` https://hypebeans.onrender.com/${item.product.image}`}
+                      src={`https://hypebeans.onrender.com/${item.product.image}`}
                       alt={item.product.name}
                       className="w-16 h-16 object-cover rounded-lg"
                     />
                     <div className="ml-4 flex-1">
                       <h3 className="text-lg font-bold text-zinc-800">
-                        {item.product.name} ({variantInfo.variant.toUpperCase()})
+                        {item.product.name} ({item.variant.toUpperCase()})
                       </h3>
-                      <p className="text-zinc-600">₱{variantInfo.price} each</p>
+                      <p className="text-zinc-600">₱{item.price} each</p>
+                      <p className="text-sm text-zinc-500">
+                        Size: {item.variant === "hot" ? "10oz" : "16oz"}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                       <button
                         className="bg-zinc-200 px-3 py-1 rounded-l hover:bg-zinc-300"
-                        onClick={() =>
-                          handleUpdateQuantity(
-                            item.product._id,
-                            Math.max(1, (variantInfo.quantity || 1) - 1),
-                            variantInfo.variant
-                          )
-                        }
+                        onClick={() => handleUpdateQuantity(item._id, Math.max(1, item.quantity - 1))}
                       >
                         -
                       </button>
-                      <span className="px-4">{variantInfo.quantity || 1}</span>
+                      <span className="px-4">{item.quantity}</span>
                       <button
                         className={`px-3 py-1 rounded-r ${
-                          productStocks[item.product._id] !== undefined && 
-                          (variantInfo.quantity || 1) >= productStocks[item.product._id]
+                          item.quantity >= maxQuantity
                             ? "bg-zinc-300 cursor-not-allowed"
                             : "bg-zinc-200 hover:bg-zinc-300"
                         }`}
                         onClick={() => {
-                          if (productStocks[item.product._id] === undefined || 
-                              (variantInfo.quantity || 1) < productStocks[item.product._id]) {
-                            handleUpdateQuantity(
-                              item.product._id,
-                              (variantInfo.quantity || 1) + 1,
-                              variantInfo.variant
-                            );
+                          if (item.quantity < maxQuantity) {
+                            handleUpdateQuantity(item._id, item.quantity + 1);
                           }
                         }}
-                        disabled={
-                          loadingStocks[item.product._id] || 
-                          (productStocks[item.product._id] !== undefined && 
-                           (variantInfo.quantity || 1) >= productStocks[item.product._id])
-                        }
+                        disabled={item.quantity >= maxQuantity}
                       >
                         {loadingStocks[item.product._id] ? "..." : "+"}
                       </button>
                     </div>
                     <button
                       className="bg-zinc-800 text-white px-3 py-1 rounded text-sm"
-                      onClick={() => handleRemoveItem(item.product._id, variantInfo.variant)}
+                      onClick={() => handleRemoveItem(item._id)}
                     >
                       Remove
                     </button>
                   </div>
-                  {productStocks[item.product._id] !== undefined && (
+                  {maxQuantity !== Infinity && (
                     <div className="text-xs text-zinc-500 mt-1">
-                      Available: {productStocks[item.product._id]}
+                      Available: {maxQuantity}
                     </div>
                   )}
                   <div className="mt-2 text-right font-medium">
-                    Subtotal: ₱{(variantInfo.price * (variantInfo.quantity || 1)).toFixed(2)}
+                    Subtotal: ₱{(item.price * item.quantity).toFixed(2)}
                   </div>
                 </div>
-              ));
+              );
             })}
           </div>
 
