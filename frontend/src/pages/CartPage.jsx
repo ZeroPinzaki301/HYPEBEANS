@@ -55,11 +55,10 @@ const CartPage = () => {
   // Update quantity of a cart item
   const handleUpdateQuantity = async (itemId, newQuantity) => {
     try {
-      await axiosInstance.put(`/api/cart/update/${userId}/${itemId}`, {
+      await axiosInstance.put(`/api/cart/update-item/${userId}/${itemId}`, {
         quantity: newQuantity
       });
-
-      // Update local state
+  
       setCart(prev => ({
         ...prev,
         items: prev.items.map(item => 
@@ -70,13 +69,12 @@ const CartPage = () => {
       setError("Failed to update quantity.");
     }
   };
-
+  
   // Remove an item from the cart
   const handleRemoveItem = async (itemId) => {
     try {
-      await axiosInstance.delete(`/api/cart/remove/${userId}/${itemId}`);
-
-      // Update local state
+      await axiosInstance.delete(`/api/cart/remove-item/${userId}/${itemId}`);
+  
       setCart(prev => ({
         ...prev,
         items: prev.items.filter(item => item._id !== itemId)
@@ -85,7 +83,7 @@ const CartPage = () => {
       setError("Failed to remove item.");
     }
   };
-
+  
   // Calculate total price
   const calculateTotalPrice = () => {
     if (!cart) return 0;
