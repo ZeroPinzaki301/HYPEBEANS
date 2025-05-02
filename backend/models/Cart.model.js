@@ -21,12 +21,17 @@ const cartSchema = new mongoose.Schema(
         },
         price: {
           type: Number,
-          required: true, // Save current price for consistency
+          required: true,
+        },
+        variant: {
+          type: String,
+          enum: ["hot", "iced"],
+          default: "hot",
         },
       },
     ],
   },
-  { timestamps: true } // Automatically adds createdAt and updatedAt
+  { timestamps: true }
 );
 
 export default mongoose.model("Cart", cartSchema);
