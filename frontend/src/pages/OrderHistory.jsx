@@ -6,8 +6,29 @@ const OrderHistoryPage = () => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
-  // Get the userId from localStorage
   const userId = localStorage.getItem("userId");
+
+  // Function to handle reorder
+  const handleReorder = async (orderId) => {
+    try {
+      const response = await axios.put(
+        `/api/orders/reorder/${orderId}`,
+        { status: "Pending" },
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        }
+      );
+      
+      // Update the order status in the UI
+      setOrders(orders.map(order => 
+        order._id === orderId ? { ...order, status: "Pending" } : order
+      ));
+      
+      alert("Order has been reordered successfully!");
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to reorder.");
+    }
+  };
 
   useEffect(() => {
     const fetchOrderHistory = async () => {
@@ -43,13 +64,23 @@ const OrderHistoryPage = () => {
         {orders.length > 0 ? (
           <div className="space-y-4">
             {orders.map((order) => (
-              <div key={order._id} className="border p-4 rounded-lg shadow-md">
-                <p><strong>Order ID:</strong> {order._id}</p>
-                <p><strong>Status:</strong> {order.status}</p>
-                {/* Add Date and Time under Status */}
-                <p className="text-sm text-gray-500">
-                  Last Updated: {new Date(order.updatedAt).toLocaleString()}
-                </p>
+              <div key={order._id} className="border p-4 rounded-lg shadow-md relative">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p><strong>Order ID:</strong> {order._id}</p>
+                    <p><strong>Status:</strong> {order.status}</p>
+                    <p className="text-sm text-gray-500">
+                      Last Updated: {new Date(order.updatedAt).toLocaleString()}
+                    </p>
+                  </div>
+                  {/* Reorder Button (Top Right) */}
+                  <button
+                    onClick={() => handleReorder(order._id)}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
+                  >
+                    Reorder
+                  </button>
+                </div>
                 <div className="mt-4">
                   <table className="w-full border-collapse">
                     <thead>
