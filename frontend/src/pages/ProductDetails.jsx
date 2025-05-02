@@ -29,42 +29,21 @@ const ProductDetails = () => {
       navigate("/login");
       return;
     }
-
+  
     try {
       const userId = localStorage.getItem("userId");
-      const price = type === "iced" ? product.price + 10 : product.price;
+      const variantPrice = type === "iced" ? product.price + 10 : product.price;
       
-      // Store variant info in localStorage
-      const cartVariants = JSON.parse(localStorage.getItem('cartVariants') || '[]');
-      const existingIndex = cartVariants.findIndex(
-        item => item.productId === product._id && item.variant === type
-      );
-
-      if (existingIndex >= 0) {
-        // Update existing variant
-        cartVariants[existingIndex].price = price;
-        cartVariants[existingIndex].quantity = (cartVariants[existingIndex].quantity || 1) + 1;
-      } else {
-        // Add new variant
-        cartVariants.push({
-          productId: product._id,
-          variant: type,
-          price,
-          quantity: 1
-        });
-      }
-
-      localStorage.setItem('cartVariants', JSON.stringify(cartVariants));
-
-      // Send to backend (using original product ID)
+      // Send to backend with variant information
       await axiosInstance.post("/api/cart/add", {
         userId,
         productId: product._id,
         quantity: 1,
-        price: product.price // Base price
+        price: variantPrice, // Send the actual variant price
+        variant: type // Include the variant type
       });
-
-      alert(`Added ${type} ${product.name} to cart for ₱${price}`);
+  
+      alert(`Added ${type} ${product.name} to cart for ₱${variantPrice}`);
     } catch (error) {
       console.error("Add to Cart Error:", error);
       alert("Failed to add item to cart.");
