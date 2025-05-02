@@ -122,24 +122,42 @@ const OrderDetails = () => {
           <p className="mb-4"><strong>Delivery:</strong> {order.deliveryLocation?.coordinates?.join(", ") || "N/A"}</p>
 
           {/* Items table */}
-          <div className="mt-6">
-            <h3 className="text-lg font-bold mb-4">Items Ordered:</h3>
+          <div className="mt-4 overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-gray-200">
                   <th className="border px-4 py-2 text-left">Product</th>
-                  <th className="border px-4 py-2 text-left">Quantity</th>
+                  <th className="border px-4 py-2 text-left">Qty</th>
                   <th className="border px-4 py-2 text-left">Price</th>
                 </tr>
               </thead>
               <tbody>
-                {order.items?.map((item) => (
-                  <tr key={item.product?._id}>
-                    <td className="border px-4 py-2">{item.product?.name}</td>
+                {order.items.map((item) => (
+                  <tr key={item.product._id}>
+                    <td className="border px-4 py-2">{item.product.name}</td>
                     <td className="border px-4 py-2">{item.quantity}</td>
-                    <td className="border px-4 py-2">₱{(item.price * item.quantity).toFixed(2)}</td>
+                    <td className="border px-4 py-2">
+                      ₱{(item.price * item.quantity).toFixed(2)}
+                    </td>
                   </tr>
                 ))}
+                {/* Delivery Fee Row (if applicable) */}
+                {order.purchaseType === "Delivery" && (
+                  <tr>
+                    <td colSpan="2" className="border px-4 py-2 font-semibold text-right">Delivery Fee:</td>
+                    <td className="border px-4 py-2">₱50.00</td>
+                  </tr>
+                )}
+                {/* Total Price Row */}
+                <tr className="bg-gray-100">
+                  <td colSpan="2" className="border px-4 py-2 font-bold text-right">Total:</td>
+                  <td className="border px-4 py-2 font-bold">
+                    ₱{(
+                      order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0) + 
+                      (order.purchaseType === "Delivery" ? 50 : 0))
+                    .toFixed(2)}
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
