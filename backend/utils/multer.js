@@ -58,7 +58,7 @@ export const productUpload = multer({
   },
 });
 
-export const paymentProof = multer({
+export const paymentProofUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
       cb(null, paymentProofsPath); // Save product images directly in "uploads"
