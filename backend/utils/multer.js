@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 // Ensure the folders exist
 const uploadsPath = path.join(__dirname, "../uploads");
 const profilePicturesPath = path.join(uploadsPath, "profile-pictures");
+const paymentProofsPath = path.join(uploadsPath, "payment-proofs");
 
 if (!fs.existsSync(profilePicturesPath)) {
   fs.mkdirSync(profilePicturesPath, { recursive: true });
@@ -41,6 +42,26 @@ export const productUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
       cb(null, uploadsPath); // Save product images directly in "uploads"
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + path.extname(file.originalname);
+      cb(null, `${file.fieldname}-${uniqueSuffix}`);
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ["image/jpeg", "image/png", "image/jpg"];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type. Only JPEG, PNG, and JPG are allowed."));
+    }
+  },
+});
+
+export const paymentProof = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, paymentProofsPath); // Save product images directly in "uploads"
     },
     filename: (req, file, cb) => {
       const uniqueSuffix = Date.now() + path.extname(file.originalname);
