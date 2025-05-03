@@ -89,26 +89,41 @@ const CheckoutPage = () => {
   };
 
   const handleProofUpload = async (e) => {
-        e.preventDefault();
-        if (!gcashNumber || !proofImage) {
-          alert("Please provide your GCash number and upload the proof of payment.");
-          return;
-        }
+    e.preventDefault();
     
-        const formData = new FormData();
-        formData.append("userId", userId);
-        formData.append("gcashNumber", gcashNumber);
-        formData.append("proofImage", proofImage);
-    
-        try {
-          await axiosInstance.post("/api/payment-proof/upload", formData, {
-            headers: { "Content-Type": "multipart/form-data" },
-          });
-          alert("Proof of payment uploaded successfully.");
-        } catch (error) {
-          alert("Failed to upload proof of payment.");
-        }
-      };
+    if (!gcashNumber || !proofImage) {
+      alert("Please provide your GCash number and upload the proof of payment.");
+      return;
+    }
+  
+    if (gcashNumber.length !== 11 || !gcashNumber.startsWith('09')) {
+      alert("Please enter a valid GCash number (11 digits starting with 09)");
+      return;
+    }
+  
+    const formData = new FormData();
+    formData.append("userId", userId);
+    formData.append("gcashNumber", gcashNumber);
+    formData.append("proofImage", proofImage);
+  
+    try {
+      setIsProcessing(true);
+      const response = await axiosInstance.post("/api/payment-proof/upload", formData, {
+        headers: { 
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      
+      alert(response.data.message || "Proof of payment uploaded successfully.");
+      // Optionally store the image path in state if needed later
+      setUploadedImagePath(response.data.imagePath);
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert(error.response?.data?.message || "Failed to upload proof of payment.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const handleCheckout = async () => {
     // Only validate GPS for delivery orders
