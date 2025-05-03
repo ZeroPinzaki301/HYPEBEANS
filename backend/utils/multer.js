@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 // Ensure the folders exist
 const uploadsPath = path.join(__dirname, "../uploads");
 const profilePicturesPath = path.join(uploadsPath, "profile-pictures");
-const paymentProofsPath = path.join(uploadsPath, "payment-proofs");
+const paymentProofsPath = path.join(uploadsPath, "payment-proof");
 
 if (!fs.existsSync(profilePicturesPath)) {
   fs.mkdirSync(profilePicturesPath, { recursive: true });
