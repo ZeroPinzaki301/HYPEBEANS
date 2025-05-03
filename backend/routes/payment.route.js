@@ -1,45 +1,47 @@
 import express from "express";
-import multer from "multer";
+import { paymentProofUpload } from "../utils/multer.js"; // Import the new upload utility
 import PaymentProof from "../models/Payment.model.js";
 
 const router = express.Router();
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "./uploads/payment-proof"); // Save files in "payment-proof" folder
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`); // Add timestamp to avoid name clashes
-  },
-});
-
-const upload = multer({ storage });
-
 // Route to upload payment proof
-router.post("/upload", upload.single("proofImage"), async (req, res) => {
-  const { userId, gcashNumber } = req.body;
-
-  if (!req.file) {
-    return res.status(400).json({ message: "No file uploaded." });
-  }
-
+router.post("/upload", paymentProofUpload.single("proofImage"), async (req, res) => {
   try {
+    const { userId, gcashNumber } = req.body;
+
+    if (!userId || !gcashNumber) {
+      return res.status(400).json({ 
+        message: "User ID and GCash number are required." 
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ 
+        message: "No file uploaded or invalid file type." 
+      });
+    }
+
     const newProof = new PaymentProof({
       userId,
       gcashNumber,
-      proofImage: req.file.path,
+      proofImage: `uploads/payment-proofs/${req.file.filename}`, // Consistent path format
     });
+
     await newProof.save();
 
-    res.status(201).json({ message: "Payment proof uploaded successfully." });
+    res.status(201).json({ 
+      message: "Payment proof uploaded successfully.",
+      imagePath: newProof.proofImage
+    });
   } catch (error) {
     console.error("Error uploading payment proof:", error);
-    res.status(500).json({ message: "Server error. Please try again." });
+    res.status(500).json({ 
+      message: error.message || "Server error. Please try again." 
+    });
   }
 });
 
-// Route to retrieve all payment proofs (for admin)
+// Keep your existing GET /all route
 router.get("/all", async (req, res) => {
   try {
     const proofs = await PaymentProof.find().populate("userId", "name email");
