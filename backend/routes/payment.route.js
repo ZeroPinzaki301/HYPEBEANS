@@ -24,7 +24,7 @@ router.post("/upload", paymentProofUpload.single("proofImage"), async (req, res)
     const newProof = new PaymentProof({
       userId,
       gcashNumber,
-      proofImage: `uploads/payment-proofs/${req.file.filename}`, // Consistent path format
+      proofImage: `uploads/payment-proof/${req.file.filename}`, // Consistent path format
     });
 
     await newProof.save();
