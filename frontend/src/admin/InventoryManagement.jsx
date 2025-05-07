@@ -209,6 +209,25 @@ const AdminInventory = () => {
     </div>
   );
 
+  const getRowColor = (ingredient) => {
+    const { quantity, unit } = ingredient;
+    
+    if (unit === "pcs") {
+      if (quantity <= 20) return "bg-red-100";
+      if (quantity <= 50) return "bg-yellow-100";
+    } 
+    else if (unit === "g") {
+      if (quantity < 100) return "bg-red-100";
+      if (quantity <= 200) return "bg-yellow-100";
+    } 
+    else if (unit === "ml") {
+      if (quantity < 120) return "bg-red-100";
+      if (quantity <= 250) return "bg-yellow-100";
+    }
+    
+    return ""; // Default/no color
+  };
+
   return (
     <div className="bg-gray-100 min-h-screen p-6 font-serif">
       <Link
@@ -249,7 +268,7 @@ const AdminInventory = () => {
             <tbody>
               {ingredients.length > 0 ? (
                 ingredients.map((ingredient) => (
-                  <tr key={ingredient._id}>
+                  <tr key={ingredient._id} className={getRowColor(ingredient)}>
                     <td className="border px-4 py-2">{ingredient.name}</td>
                     <td className="border px-4 py-2">{ingredient.quantity}</td>
                     <td className="border px-4 py-2">{ingredient.unit}</td>
