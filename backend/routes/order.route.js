@@ -11,9 +11,12 @@ const router = express.Router();
 const emitPendingOrdersUpdate = async () => {
   try {
     const count = await Order.countDocuments({ status: 'Pending' });
+    console.log(`Emitting pending orders update: ${count} pending orders`);
     io.emit('pending-orders-updated', { count });
+    return count; // Return the count for debugging
   } catch (error) {
     console.error('Error emitting pending orders update:', error);
+    throw error;
   }
 };
 
@@ -280,7 +283,10 @@ router.put("/update-status/:orderId", async (req, res) => {
 
     // 4. Notify clients via Socket.IO
     io.emit("order-status-changed", { _id: order._id, status: order.status });
-    if (willAffectPending) await emitPendingOrdersUpdate();
+    if (willAffectPending) {
+      const newCount = await emitPendingOrdersUpdate();
+      console.log(`Order ${order._id} status changed to ${status}. New pending count: ${newCount}`);
+    }
 
     res.status(200).json({
       message: "Order status updated successfully",
