@@ -79,7 +79,11 @@ const ManageOrders = () => {
       {/* Orders Display */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {Array.isArray(orders) && orders.length > 0 ? (
-          orders.map((order) => (
+          [...orders].sort((a, b) => {
+            const priorityA = a.status === "Canceled" || a.status === "Delivered" ? 1 : 0;
+            const priorityB = b.status === "Canceled" || b.status === "Delivered" ? 1 : 0;
+            return priorityA - priorityB; // Orders with lower priority (0) come first
+          }).map((order) => (
             <div
               key={order._id}
               className={`bg-white p-4 rounded-lg shadow-md cursor-pointer ${
