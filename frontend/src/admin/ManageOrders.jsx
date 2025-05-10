@@ -97,6 +97,7 @@ const ManageOrders = () => {
             >
               <h2 className="text-lg font-semibold mb-2">Order #{order._id}</h2>
               <p>User: {order.user?.name || "Unknown User"}</p>
+              <p>Payment Method: {order.paymentMethod}</p>
               <p>Status: {order.status}</p>
               <p>
                 Delivery:{" "}
