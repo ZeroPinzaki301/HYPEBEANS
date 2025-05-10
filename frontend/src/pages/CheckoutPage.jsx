@@ -15,6 +15,7 @@ const CheckoutPage = () => {
   const [proofImage, setProofImage] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState("");
+  const [manualAddressOptions, setManualAddressOptions] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -46,6 +47,26 @@ const CheckoutPage = () => {
 
     fetchData();
 
+    // Fetch Order History for preset inputs 
+    const fetchOrderHistory = async () => {
+      try {
+        const response = await axiosInstance.get(`/api/orders/history/${userId}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
+  
+        // Extract unique manual addresses
+        const uniqueAddresses = [
+          ...new Set(response.data.orders.map(order => order.manualAddress).filter(Boolean))
+        ];
+        
+        setManualAddressOptions(uniqueAddresses);
+      } catch (error) {
+        console.error("Error fetching order history:", error);
+      }
+    };
+  
+    fetchOrderHistory();
+    
     // Get GPS location only for delivery orders
     if (purchaseType === "Delivery" && "geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -227,6 +248,17 @@ const CheckoutPage = () => {
 
               {purchaseType === "Delivery" && (
                 <>
+                  <label className="block font-semibold mb-2">Select Previous Address:</label>
+                  <select
+                    className="w-full p-2 border rounded mb-4"
+                    onChange={(e) => setManualAddress(e.target.value)}
+                  >
+                    <option value="">Select an address</option>
+                    {manualAddressOptions.map((address, index) => (
+                      <option key={index} value={address}>{address}</option>
+                    ))}
+                  </select>
+
                   <input
                     type="text"
                     placeholder="Delivery Address"
