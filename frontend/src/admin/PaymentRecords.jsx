@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 
 const AdminPaymentProofs = () => {
   const [paymentProofs, setPaymentProofs] = useState([]); // Store payment proofs
+  const [searchQuery, setSearchQuery] = useState(""); // Search input state
   const [error, setError] = useState(""); // Handle errors
   const [isLoading, setIsLoading] = useState(true); // Loading state
 
@@ -12,7 +13,8 @@ const AdminPaymentProofs = () => {
     const fetchPaymentProofs = async () => {
       try {
         const { data } = await axiosInstance.get("/api/payment-proof/all");
-        setPaymentProofs(data); // Set payment proofs in state
+        const sortedProofs = data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        setPaymentProofs(sortedProofs); // Set payment proofs in state
       } catch (err) {
         setError(err.response?.data?.message || "Error fetching payment proofs.");
       } finally {
@@ -22,6 +24,11 @@ const AdminPaymentProofs = () => {
 
     fetchPaymentProofs();
   }, []);
+
+  // Filter payment proofs based on search query
+  const filteredProofs = searchQuery
+    ? paymentProofs.filter((proof) => proof._id.includes(searchQuery))
+    : paymentProofs;
 
   return (
     <div className="bg-gray-100 min-h-screen p-6 font-serif">
@@ -33,6 +40,17 @@ const AdminPaymentProofs = () => {
       </Link>
       <h1 className="text-center text-4xl font-bold mb-8">Payment Proofs</h1>
 
+      {/* Search Bar */}
+      <div className="mb-6 flex justify-center">
+        <input
+          type="text"
+          placeholder="Search Proof ID..."
+          className="w-full max-w-md p-2 border rounded-lg shadow-sm"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
+
       {error && (
         <p className="text-red-500 bg-red-100 p-4 rounded-lg mb-4 text-center">
           {error}
@@ -43,12 +61,9 @@ const AdminPaymentProofs = () => {
         <p className="text-center text-gray-500">Loading payment proofs...</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {paymentProofs.length > 0 ? (
-            paymentProofs.map((proof) => (
-              <div
-                key={proof._id}
-                className="bg-white p-6 rounded-lg shadow-md"
-              >
+          {filteredProofs.length > 0 ? (
+            filteredProofs.map((proof) => (
+              <div key={proof._id} className="bg-white p-6 rounded-lg shadow-md">
                 <h2 className="text-lg font-semibold mb-4">Proof ID: {proof._id}</h2>
                 <p>
                   <strong>User:</strong> {proof.userId?.name || "Unknown User"}
@@ -79,7 +94,7 @@ const AdminPaymentProofs = () => {
               </div>
             ))
           ) : (
-            <p className="text-gray-500 text-center">No payment proofs available.</p>
+            <p className="text-gray-500 text-center">No matching payment proof found.</p>
           )}
         </div>
       )}
