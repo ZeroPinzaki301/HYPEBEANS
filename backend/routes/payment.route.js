@@ -31,7 +31,8 @@ router.post("/upload", paymentProofUpload.single("proofImage"), async (req, res)
 
     res.status(201).json({ 
       message: "Payment proof uploaded successfully.",
-      imagePath: newProof.proofImage
+      imagePath: newProof.proofImage,
+      _id: newProof._id
     });
   } catch (error) {
     console.error("Error uploading payment proof:", error);
