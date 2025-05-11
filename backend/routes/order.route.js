@@ -42,6 +42,7 @@ router.post("/checkout/:userId", async (req, res) => {
       paymentStatus: paymentMethod === "GCash" ? "Paid" : "Pending",
       status: "Pending",
       purchaseType,
+      ...(req.body.gcashPaymentProofId && { gcashPaymentProof: req.body.gcashPaymentProofId }),
     };
 
     if (purchaseType === "Delivery") {
