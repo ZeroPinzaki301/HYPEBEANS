@@ -173,6 +173,19 @@ const CheckoutPage = () => {
     setIsProcessing(true);
 
     try {
+      let paymentProofId = null;
+      if (paymentMethod === "GCash" && proofImage) {
+        const formData = new FormData();
+        formData.append("userId", userId);
+        formData.append("gcashNumber", gcashNumber);
+        formData.append("proofImage", proofImage);
+        
+        const uploadResponse = await axiosInstance.post("/api/payment-proof/upload", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        paymentProofId = uploadResponse.data._id; // Assuming the response includes the ID
+      }
+      
       const { items } = calculateTotals();
       
       await axiosInstance.post(`/api/orders/checkout/${userId}`, {
@@ -181,7 +194,8 @@ const CheckoutPage = () => {
         manualAddress: purchaseType === "Delivery" ? manualAddress : undefined,
         paymentMethod,
         paymentStatus: paymentMethod === "GCash" ? "Paid" : "Pending",
-        purchaseType
+        purchaseType,
+        ...(paymentMethod === "GCash" && { gcashPaymentProofId: paymentProofId }),
       });
 
       // Clear cart variants from localStorage after successful checkout
