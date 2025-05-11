@@ -48,6 +48,12 @@ const orderSchema = new mongoose.Schema(
 
     manualAddress: { type: String, default: "" },
 
+    gcashPaymentProof: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: "PaymentProof",
+      default: null 
+    },
+
     adminLocation: {
       type: { type: String, enum: ["Point"], default: "Point" },
       coordinates: { type: [Number], required: false },
