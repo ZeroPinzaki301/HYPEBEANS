@@ -60,20 +60,24 @@ const ManageOrders = () => {
     navigate(`/admin/manage-orders/${orderId}`);
   };
 
-  const viewPaymentProof = (paymentProofId) => {
-
-  const orderWithProof = orders.find(order => 
-    order.gcashPaymentProof === paymentProofId
-  );
-  
-    if (orderWithProof && orderWithProof.gcashPaymentProof) {
-  
-      window.open(
-        `https://hypebeans.onrender.com/uploads/payment-proof/${orderWithProof.proofImage}`,
-        '_blank'
-      );
-    } else {
-      alert('Payment proof not found');
+  const viewPaymentProof = async (paymentProofId) => {
+    try {
+      // Fetch the specific payment proof using the ID
+      const { data } = await axiosInstance.get(`/api/payment-proof/all`);
+      const proof = data.find(p => p._id === paymentProofId);
+      
+      if (proof && proof.proofImage) {
+        // Open the image in a new tab
+        window.open(
+          `https://hypebeans.onrender.com/${proof.proofImage}`,
+          '_blank'
+        );
+      } else {
+        alert('Payment proof image not found');
+      }
+    } catch (error) {
+      console.error('Error fetching payment proof:', error);
+      alert('Failed to load payment proof');
     }
   };
 
