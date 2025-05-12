@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import axiosInstance from "../utils/axiosInstance";
 import { Link } from "react-router-dom";
 import { IoCartSharp } from "react-icons/io5";
+import { IoListSharp } from "react-icons/io5";
 import { io } from "socket.io-client";
 
 const socket = io("https://hypebeans.onrender.com");
