@@ -61,7 +61,20 @@ const ManageOrders = () => {
   };
 
   const viewPaymentProof = (paymentProofId) => {
-    navigate(`/admin/payment-proof/${paymentProofId}`);
+
+  const orderWithProof = orders.find(order => 
+    order.gcashPaymentProof === paymentProofId
+  );
+  
+    if (orderWithProof && orderWithProof.gcashPaymentProof) {
+  
+      window.open(
+        `https://hypebeans.onrender.com/uploads/payment-proof/${orderWithProof.proofImage}`,
+        '_blank'
+      );
+    } else {
+      alert('Payment proof not found');
+    }
   };
 
   return (
