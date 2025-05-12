@@ -2,6 +2,11 @@ import React, { useState, useEffect } from "react";
 import axiosInstance from "../utils/axiosInstance";
 import ConfirmationDialog from "../components/ConfirmationDialog";
 import { io } from "socket.io-client"; // Import Socket.IO client
+import { GiCoffeePot } from "react-icons/gi";
+import { BsHourglassSplit } from "react-icons/bs";
+import { MdDeliveryDining } from "react-icons/md";
+import { PiCookingPotFill } from "react-icons/pi";
+
 
 const OngoingOrdersPage = () => {
   const [orders, setOrders] = useState([]);
@@ -147,6 +152,10 @@ const OngoingOrdersPage = () => {
                     order.status === "Processing" ? "text-blue-600" :
                     "text-green-600"
                   }`}>
+                    {order.status === "Pending" && <BsHourglassSplit className="inline mr-1" />}
+                    {order.status === "Preparing" && <GiCoffeePot className="inline mr-1" />}
+                    {order.status === "Processing" && <PiCookingPotFill className="inline mr-1" />}
+                    {order.status === "Out for Delivery" && <MdDeliveryDining className="inline mr-1" />}
                     {order.status}
                   </p>
                 </div>
