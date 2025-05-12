@@ -182,6 +182,28 @@ const ProductsPage = () => {
           </div>
         )}
       </div>
+
+      {/* Conditional Navigation Buttons (Fixed at bottom right) */}
+      {isLoggedIn && (
+        <div className="fixed bottom-6 right-6 flex flex-col gap-3">
+          <Link
+            to="/cart"
+            className="bg-zinc-800 text-white p-3 rounded-full shadow-lg hover:bg-zinc-600 transition duration-200 flex items-center justify-center"
+            title="View Cart"
+          >
+            <IoCartSharp className="text-2xl" />
+          </Link>
+          
+          <Link
+            to="/orders/ongoing"
+            className="bg-zinc-800 text-white p-3 rounded-full shadow-lg hover:bg-zinc-600 transition duration-200 flex items-center justify-center"
+            title="Ongoing Orders"
+          >
+            <IoListSharp className="text-2xl" />
+          </Link>
+        </div>
+      )}
+      
     </div>
   );
 };
